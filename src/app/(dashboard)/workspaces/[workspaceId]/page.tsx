@@ -2,6 +2,9 @@ import { AddWorkspaceMemberForm } from "@/features/workspace/components/add-work
 import { WorkspaceDetails } from "@/features/workspace/components/workspace-details";
 import { WorkspaceMembers } from "@/features/workspace/components/workspace-members";
 
+import { CreateWorkflowForm } from "@/features/workflow/components/create-workflow-form";
+import { WorkflowList } from "@/features/workflow/components/workflow-list";
+
 type WorkspacePageProps = {
   params: Promise<{
     workspaceId: string;
@@ -15,11 +18,25 @@ export default async function WorkspacePage({
 
   return (
     <div className="space-y-6">
-      <WorkspaceDetails workspaceId={workspaceId} />
+      <WorkspaceDetails
+        workspaceId={workspaceId}
+      />
 
-      <AddWorkspaceMemberForm workspaceId={workspaceId} />
+      <CreateWorkflowForm
+        workspaceId={workspaceId}
+      />
 
-      <WorkspaceMembers workspaceId={workspaceId} />
+      <WorkflowList
+        workspaceId={workspaceId}
+      />
+
+      <AddWorkspaceMemberForm
+        workspaceId={workspaceId}
+      />
+
+      <WorkspaceMembers
+        workspaceId={workspaceId}
+      />
     </div>
   );
 }

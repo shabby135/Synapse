@@ -12,6 +12,7 @@ export type WorkspacePermission =
   | "workflow:read"
   | "workflow:create"
   | "workflow:update"
+  | "workflow:delete"
   | "workflow:execute";
 
 const permissionsByRole: Record<
@@ -26,6 +27,7 @@ const permissionsByRole: Record<
     "workflow:read",
     "workflow:create",
     "workflow:update",
+    "workflow:delete",
     "workflow:execute",
   ],
 
@@ -36,6 +38,7 @@ const permissionsByRole: Record<
     "workflow:read",
     "workflow:create",
     "workflow:update",
+    "workflow:delete",
     "workflow:execute",
   ],
 
