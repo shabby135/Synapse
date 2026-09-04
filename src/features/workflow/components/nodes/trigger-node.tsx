@@ -1,23 +1,19 @@
 import {
   Handle,
   Position,
-  type Node,
   type NodeProps,
 } from "@xyflow/react";
 import { Play } from "lucide-react";
 
-export type TriggerNodeType = Node<
-  {
-    label: string;
-    description?: string;
-  },
-  "trigger"
->;
+import type { WorkflowNodeData } from "@/features/workflow/types";
 
 export function TriggerNode({
   data,
   selected,
-}: NodeProps<TriggerNodeType>) {
+}: NodeProps) {
+  const nodeData =
+    data as WorkflowNodeData;
+
   return (
     <div
       className={`w-64 rounded-lg border bg-background shadow-sm ${
@@ -36,13 +32,15 @@ export function TriggerNode({
             Trigger
           </p>
 
-          <p className="font-medium">{data.label}</p>
+          <p className="font-medium">
+            {nodeData.label}
+          </p>
         </div>
       </div>
 
-      {data.description && (
+      {nodeData.description && (
         <p className="px-4 py-3 text-sm text-muted-foreground">
-          {data.description}
+          {nodeData.description}
         </p>
       )}
 
@@ -53,4 +51,4 @@ export function TriggerNode({
       />
     </div>
   );
-}
+} 

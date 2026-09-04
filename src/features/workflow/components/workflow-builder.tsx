@@ -3,6 +3,7 @@
 import {
   useCallback,
   useMemo,
+  useState,
 } from "react";
 import {
   addEdge,
@@ -20,31 +21,28 @@ import {
 import "@xyflow/react/dist/style.css";
 
 import {
-  Loader2,
-  Save,
-} from "lucide-react";
-import {
   useMutation,
   useQueryClient,
 } from "@tanstack/react-query";
+import {
+  Loader2,
+  Save,
+} from "lucide-react";
 import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
+import type {
+  ActionNodeType,
+  WorkflowCanvasNode,
+  WorkflowNodeData,
+} from "@/features/workflow/types";
+import { validateWorkflowDraft } from "@/features/workflow/validate-workflow";
 import { saveWorkflowDefinitionSchema } from "@/features/workflow/validator";
 import { useTRPC } from "@/trpc/react";
 
-import {
-  TriggerNode,
-  type TriggerNodeType,
-} from "./nodes/trigger-node";
-import {
-  ActionNode,
-  type ActionNodeType,
-} from "./nodes/action-node";
-
-type WorkflowCanvasNode =
-  | TriggerNodeType
-  | ActionNodeType;
+import { ActionNode } from "./nodes/action-node";
+import { TriggerNode } from "./nodes/trigger-node";
+import { NodeConfigurationPanel } from "./node-configuration-panel";
 
 type WorkflowBuilderProps = {
   workflowId: string;
@@ -67,6 +65,9 @@ const defaultNodes: WorkflowCanvasNode[] = [
       label: "Manual Trigger",
       description:
         "Starts when the workflow is run manually.",
+      configuration: {
+        triggerType: "MANUAL",
+      },
     },
     deletable: false,
   },
@@ -92,6 +93,16 @@ export function WorkflowBuilder({
 }: WorkflowBuilderProps) {
   const trpc = useTRPC();
   const queryClient = useQueryClient();
+
+  const [
+    selectedNodeId,
+    setSelectedNodeId,
+  ] = useState<string | null>(null);
+
+  const [
+    validationError,
+    setValidationError,
+  ] = useState<string | null>(null);
 
   const initialCanvas = useMemo(() => {
     const result =
@@ -140,10 +151,18 @@ export function WorkflowBuilder({
     initialCanvas.edges
   );
 
+  const selectedNode =
+    nodes.find(
+      (node) =>
+        node.id === selectedNodeId
+    ) ?? null;
+
   const saveDefinition = useMutation(
     trpc.workflow.saveDefinition.mutationOptions(
       {
         onSuccess: async () => {
+          setValidationError(null);
+
           await queryClient.invalidateQueries(
             trpc.workflow.getById.queryFilter(
               {
@@ -166,6 +185,8 @@ export function WorkflowBuilder({
         return;
       }
 
+      setValidationError(null);
+
       setEdges((currentEdges) =>
         addEdge(
           {
@@ -184,40 +205,123 @@ export function WorkflowBuilder({
       return;
     }
 
-    setNodes((currentNodes) => {
-      const actionCount =
+    const actionCount =
+      nodes.filter(
+        (node) =>
+          node.type === "action"
+      ).length;
+
+    const newNode: ActionNodeType = {
+      id: crypto.randomUUID(),
+      type: "action",
+      position: {
+        x: 400,
+        y: 150 + actionCount * 140,
+      },
+      data: {
+        label: `Action ${
+          actionCount + 1
+        }`,
+        description:
+          "Configure this workflow action.",
+        configuration: {
+          actionType: "HTTP_REQUEST",
+        },
+      },
+    };
+
+    setValidationError(null);
+
+    setNodes((currentNodes) => [
+      ...currentNodes,
+      newNode,
+    ]);
+
+    setSelectedNodeId(newNode.id);
+  }, [
+    canEdit,
+    nodes,
+    setNodes,
+  ]);
+
+  const updateNode = useCallback(
+    (
+      nodeId: string,
+      data: WorkflowNodeData
+    ) => {
+      if (!canEdit) {
+        return;
+      }
+
+      setValidationError(null);
+
+      setNodes((currentNodes) =>
+        currentNodes.map((node) =>
+          node.id === nodeId
+            ? {
+                ...node,
+                data,
+              }
+            : node
+        )
+      );
+    },
+    [canEdit, setNodes]
+  );
+
+  const deleteNode = useCallback(
+    (nodeId: string) => {
+      if (!canEdit) {
+        return;
+      }
+
+      setValidationError(null);
+
+      setNodes((currentNodes) =>
         currentNodes.filter(
           (node) =>
-            node.type === "action"
-        ).length;
+            node.id !== nodeId ||
+            node.type === "trigger"
+        )
+      );
 
-      const newNode: ActionNodeType = {
-        id: crypto.randomUUID(),
-        type: "action",
-        position: {
-          x: 400,
-          y: 150 + actionCount * 140,
-        },
-        data: {
-          label: `Action ${
-            actionCount + 1
-          }`,
-          description:
-            "Configure this workflow action.",
-        },
-      };
+      setEdges((currentEdges) =>
+        currentEdges.filter(
+          (edge) =>
+            edge.source !== nodeId &&
+            edge.target !== nodeId
+        )
+      );
 
-      return [
-        ...currentNodes,
-        newNode,
-      ];
-    });
-  }, [canEdit, setNodes]);
+      setSelectedNodeId(null);
+    },
+    [
+      canEdit,
+      setEdges,
+      setNodes,
+    ]
+  );
 
   const handleSave = useCallback(() => {
     if (!canEdit) {
       return;
     }
+
+    const validation =
+      validateWorkflowDraft(
+        nodes,
+        edges
+      );
+
+    if (!validation.valid) {
+      setValidationError(
+        validation.message
+      );
+
+      return;
+    }
+
+    setValidationError(null);
 
     saveDefinition.mutate({
       id: workflowId,
@@ -233,6 +337,8 @@ export function WorkflowBuilder({
           label: node.data.label,
           description:
             node.data.description,
+          configuration:
+            node.data.configuration,
         },
       })),
 
@@ -265,9 +371,15 @@ export function WorkflowBuilder({
           </h2>
 
           <p className="text-sm text-muted-foreground">
-            Add actions and connect them to
-            define the workflow.
+            Add, connect and configure
+            workflow nodes.
           </p>
+
+          {validationError && (
+            <p className="mt-1 text-sm font-medium text-destructive">
+              {validationError}
+            </p>
+          )}
 
           {saveDefinition.error && (
             <p className="mt-1 text-sm font-medium text-destructive">
@@ -311,52 +423,78 @@ export function WorkflowBuilder({
         )}
       </div>
 
-      <div className="min-h-0 flex-1">
-        <ReactFlow<
-          WorkflowCanvasNode,
-          Edge
-        >
-          nodes={nodes}
-          edges={edges}
-          nodeTypes={nodeTypes}
-          onNodesChange={onNodesChange}
-          onEdgesChange={onEdgesChange}
-          onConnect={
-            canEdit
-              ? onConnect
-              : undefined
-          }
-          nodesDraggable={canEdit}
-          nodesConnectable={canEdit}
-          edgesReconnectable={canEdit}
-          deleteKeyCode={
-            canEdit
-              ? [
-                  "Backspace",
-                  "Delete",
-                ]
-              : null
-          }
-          fitView
-        >
-          <Background
-            variant={
-              BackgroundVariant.Dots
+      <div className="flex min-h-0 flex-1">
+        <div className="min-w-0 flex-1">
+          <ReactFlow<
+            WorkflowCanvasNode,
+            Edge
+          >
+            nodes={nodes}
+            edges={edges}
+            nodeTypes={nodeTypes}
+            onNodesChange={
+              onNodesChange
             }
-            gap={20}
-            size={1}
-          />
-
-          <Controls />
-
-          <MiniMap<WorkflowCanvasNode>
-            nodeColor={
-              getMiniMapNodeColor
+            onEdgesChange={
+              onEdgesChange
             }
-            pannable
-            zoomable
-          />
-        </ReactFlow>
+            onConnect={
+              canEdit
+                ? onConnect
+                : undefined
+            }
+            onNodeClick={(
+              _event,
+              node
+            ) => {
+              setSelectedNodeId(
+                node.id
+              );
+            }}
+            onPaneClick={() => {
+              setSelectedNodeId(
+                null
+              );
+            }}
+            nodesDraggable={canEdit}
+            nodesConnectable={canEdit}
+            edgesReconnectable={canEdit}
+            deleteKeyCode={
+              canEdit
+                ? [
+                    "Backspace",
+                    "Delete",
+                  ]
+                : null
+            }
+            fitView
+          >
+            <Background
+              variant={
+                BackgroundVariant.Dots
+              }
+              gap={20}
+              size={1}
+            />
+
+            <Controls />
+
+            <MiniMap<WorkflowCanvasNode>
+              nodeColor={
+                getMiniMapNodeColor
+              }
+              pannable
+              zoomable
+            />
+          </ReactFlow>
+        </div>
+
+        <NodeConfigurationPanel
+          node={selectedNode}
+          canEdit={canEdit}
+          onUpdate={updateNode}
+          onDelete={deleteNode}
+        />
       </div>
     </div>
   );

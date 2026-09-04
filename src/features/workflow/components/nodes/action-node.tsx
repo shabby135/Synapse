@@ -1,23 +1,19 @@
 import {
   Handle,
   Position,
-  type Node,
   type NodeProps,
 } from "@xyflow/react";
 import { Zap } from "lucide-react";
 
-export type ActionNodeType = Node<
-  {
-    label: string;
-    description?: string;
-  },
-  "action"
->;
+import type { WorkflowNodeData } from "@/features/workflow/types";
 
 export function ActionNode({
   data,
   selected,
-}: NodeProps<ActionNodeType>) {
+}: NodeProps) {
+  const nodeData =
+    data as WorkflowNodeData;
+
   return (
     <div
       className={`w-64 rounded-lg border bg-background shadow-sm ${
@@ -42,13 +38,15 @@ export function ActionNode({
             Action
           </p>
 
-          <p className="font-medium">{data.label}</p>
+          <p className="font-medium">
+            {nodeData.label}
+          </p>
         </div>
       </div>
 
-      {data.description && (
+      {nodeData.description && (
         <p className="px-4 py-3 text-sm text-muted-foreground">
-          {data.description}
+          {nodeData.description}
         </p>
       )}
 
