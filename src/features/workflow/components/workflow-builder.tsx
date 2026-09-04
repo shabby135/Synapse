@@ -113,9 +113,11 @@ export function WorkflowBuilder({
         {
           id: workflowId,
           nodes:
-            initialDefinition?.nodes ?? [],
+            initialDefinition?.nodes ??
+            [],
           edges:
-            initialDefinition?.edges ?? [],
+            initialDefinition?.edges ??
+            [],
         }
       );
 
@@ -228,8 +230,7 @@ export function WorkflowBuilder({
         description:
           "Configure this workflow action.",
         configuration: {
-          actionType:
-            "HTTP_REQUEST",
+          actionType: "NO_OP",
         },
       },
     };

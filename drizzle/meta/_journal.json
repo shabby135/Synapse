@@ -36,6 +36,13 @@
       "when": 1788384466322,
       "tag": "0004_natural_phalanx",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1788558008724,
+      "tag": "0005_futuristic_sunfire",
+      "breakpoints": true
     }
   ]
 }

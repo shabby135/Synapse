@@ -35,6 +35,10 @@ type NodeConfigurationPanelProps = {
 
 const actionTypes = [
   {
+    value: "NO_OP",
+    label: "Test / No-op",
+  },
+  {
     value: "HTTP_REQUEST",
     label: "HTTP Request",
   },
@@ -79,9 +83,9 @@ export function NodeConfigurationPanel({
     typeof selectedNode.data
       .configuration?.actionType ===
     "string"
-      ? selectedNode.data.configuration
-          .actionType
-      : "HTTP_REQUEST";
+      ? selectedNode.data
+          .configuration.actionType
+      : "NO_OP";
 
   function updateData(
     changes: Partial<WorkflowNodeData>
