@@ -322,6 +322,7 @@ export function WorkflowList({
             setSelectedAction(null);
           }
         }}
+        
       >
         <AlertDialogContent>
           <AlertDialogHeader>

@@ -1,5 +1,4 @@
 import { TRPCError } from "@trpc/server";
-
 import {
   and,
   desc,
@@ -7,21 +6,20 @@ import {
   ne,
 } from "drizzle-orm";
 
-import {
-  workflow,
-  workflowVersion,
-} from "@/lib/db/schema";
-
 import { requireWorkspacePermission } from "@/features/workspace/authorization";
-
 import {
   archiveWorkflowSchema,
   createWorkflowSchema,
   deleteWorkflowSchema,
   listWorkflowsSchema,
+  saveWorkflowDefinitionSchema,
   updateWorkflowSchema,
   workflowIdSchema,
 } from "@/features/workflow/validator";
+import {
+  workflow,
+  workflowVersion,
+} from "@/lib/db/schema";
 
 import {
   protectedProcedure,
@@ -42,9 +40,11 @@ export const workflowRouter = router({
       return ctx.db
         .select({
           id: workflow.id,
-          workspaceId: workflow.workspaceId,
+          workspaceId:
+            workflow.workspaceId,
           name: workflow.name,
-          description: workflow.description,
+          description:
+            workflow.description,
           status: workflow.status,
           createdBy: workflow.createdBy,
           createdAt: workflow.createdAt,
@@ -68,7 +68,9 @@ export const workflowRouter = router({
                 )
               )
         )
-        .orderBy(desc(workflow.updatedAt));
+        .orderBy(
+          desc(workflow.updatedAt)
+        );
     }),
 
   getById: protectedProcedure
@@ -101,8 +103,10 @@ export const workflowRouter = router({
       const versions = await ctx.db
         .select({
           id: workflowVersion.id,
-          version: workflowVersion.version,
-          status: workflowVersion.status,
+          version:
+            workflowVersion.version,
+          status:
+            workflowVersion.status,
           definition:
             workflowVersion.definition,
           createdBy:
@@ -120,7 +124,9 @@ export const workflowRouter = router({
           )
         )
         .orderBy(
-          desc(workflowVersion.version)
+          desc(
+            workflowVersion.version
+          )
         );
 
       return {
@@ -134,7 +140,8 @@ export const workflowRouter = router({
     .mutation(async ({ ctx, input }) => {
       await requireWorkspacePermission({
         database: ctx.db,
-        workspaceId: input.workspaceId,
+        workspaceId:
+          input.workspaceId,
         userId: ctx.session.user.id,
         permission: "workflow:create",
       });
@@ -156,7 +163,8 @@ export const workflowRouter = router({
                   input.workspaceId,
                 name: input.name,
                 description:
-                  input.description || null,
+                  input.description ||
+                  null,
                 status: "DRAFT",
                 createdBy:
                   ctx.session.user.id,
@@ -242,6 +250,136 @@ export const workflowRouter = router({
           .returning();
 
       return updatedWorkflow;
+    }),
+
+  saveDefinition: protectedProcedure
+    .input(
+      saveWorkflowDefinitionSchema
+    )
+    .mutation(async ({ ctx, input }) => {
+      const [existingWorkflow] =
+        await ctx.db
+          .select()
+          .from(workflow)
+          .where(
+            eq(workflow.id, input.id)
+          )
+          .limit(1);
+
+      if (!existingWorkflow) {
+        throw new TRPCError({
+          code: "NOT_FOUND",
+          message: "Workflow not found.",
+        });
+      }
+
+      if (
+        existingWorkflow.status ===
+        "ARCHIVED"
+      ) {
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message:
+            "Archived workflows cannot be edited.",
+        });
+      }
+
+      await requireWorkspacePermission({
+        database: ctx.db,
+        workspaceId:
+          existingWorkflow.workspaceId,
+        userId: ctx.session.user.id,
+        permission: "workflow:update",
+      });
+
+      return ctx.db.transaction(
+        async (transaction) => {
+          const [latestVersion] =
+            await transaction
+              .select()
+              .from(workflowVersion)
+              .where(
+                eq(
+                  workflowVersion.workflowId,
+                  input.id
+                )
+              )
+              .orderBy(
+                desc(
+                  workflowVersion.version
+                )
+              )
+              .limit(1);
+
+          const definition = {
+            nodes: input.nodes,
+            edges: input.edges,
+            variables:
+              latestVersion?.definition
+                .variables ?? {},
+          };
+
+          const [savedVersion] =
+            latestVersion?.status ===
+            "DRAFT"
+              ? await transaction
+                  .update(
+                    workflowVersion
+                  )
+                  .set({
+                    definition,
+                    updatedAt:
+                      new Date(),
+                  })
+                  .where(
+                    eq(
+                      workflowVersion.id,
+                      latestVersion.id
+                    )
+                  )
+                  .returning()
+              : await transaction
+                  .insert(
+                    workflowVersion
+                  )
+                  .values({
+                    id: crypto.randomUUID(),
+                    workflowId:
+                      input.id,
+                    version:
+                      (latestVersion?.version ??
+                        0) + 1,
+                    status: "DRAFT",
+                    definition,
+                    createdBy:
+                      ctx.session.user.id,
+                  })
+                  .returning();
+
+          if (!savedVersion) {
+            throw new TRPCError({
+              code:
+                "INTERNAL_SERVER_ERROR",
+              message:
+                "Failed to save workflow definition.",
+            });
+          }
+
+          await transaction
+            .update(workflow)
+            .set({
+              updatedAt: new Date(),
+            })
+            .where(
+              eq(
+                workflow.id,
+                input.id
+              )
+            );
+
+          return savedVersion;
+        }
+      );
     }),
 
   archive: protectedProcedure

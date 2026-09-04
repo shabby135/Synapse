@@ -26,6 +26,8 @@ import { Input } from "@/components/ui/input";
 import { hasWorkspacePermission } from "@/features/workspace/permissions";
 import { useTRPC } from "@/trpc/react";
 
+import { WorkflowBuilder } from "./workflow-builder";
+
 type WorkflowDetailsProps = {
   workspaceId: string;
   workflowId: string;
@@ -59,7 +61,6 @@ export function WorkflowDetails({
               id: workflowId,
             })
           ),
-
           queryClient.invalidateQueries(
             trpc.workflow.list.queryFilter({
               workspaceId,
@@ -132,12 +133,22 @@ export function WorkflowDetails({
     );
   }
 
-  const canUpdate =
-    hasWorkspacePermission(
-      workspace.data.role,
-      "workflow:update"
-    );
+ const canUpdate =
+  hasWorkspacePermission(
+    workspace.data.role,
+    "workflow:update"
+  );
 
+const canEdit =
+  canUpdate &&
+  workflow.data.status !== "ARCHIVED";
+
+const latestDefinition =
+  workflow.data.versions[0]
+    ?.definition ?? {
+    nodes: [],
+    edges: [],
+  }; 
   return (
     <div className="space-y-6">
       <Card>
@@ -167,7 +178,19 @@ export function WorkflowDetails({
         </CardHeader>
       </Card>
 
-      {canUpdate && (
+      <Card className="overflow-hidden">
+        <CardContent className="p-0">
+          <WorkflowBuilder
+  workflowId={workflowId}
+  canEdit={canEdit}
+  initialDefinition={
+    latestDefinition
+  }
+/>
+        </CardContent>
+      </Card>
+
+    {canEdit && (
         <Card>
           <CardHeader>
             <CardTitle>
@@ -263,6 +286,7 @@ export function WorkflowDetails({
         <CardHeader>
           <div className="flex items-center gap-2">
             <History className="size-5" />
+
             <CardTitle>
               Version history
             </CardTitle>
@@ -300,4 +324,4 @@ export function WorkflowDetails({
       </Card>
     </div>
   );
-}
+} 
