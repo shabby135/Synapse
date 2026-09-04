@@ -22,7 +22,6 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
-
 import { hasWorkspacePermission } from "@/features/workspace/permissions";
 import { useTRPC } from "@/trpc/react";
 
@@ -61,6 +60,7 @@ export function WorkflowDetails({
               id: workflowId,
             })
           ),
+
           queryClient.invalidateQueries(
             trpc.workflow.list.queryFilter({
               workspaceId,
@@ -69,7 +69,9 @@ export function WorkflowDetails({
           ),
         ]);
 
-        toast.success("Workflow updated.");
+        toast.success(
+          "Workflow updated."
+        );
       },
     })
   );
@@ -94,7 +96,8 @@ export function WorkflowDetails({
     updateWorkflow.mutate({
       id: workflowId,
       name,
-      description: description || null,
+      description:
+        description || null,
     });
   }
 
@@ -116,7 +119,8 @@ export function WorkflowDetails({
     workspace.isError
   ) {
     const error =
-      workflow.error ?? workspace.error;
+      workflow.error ??
+      workspace.error;
 
     return (
       <Card>
@@ -133,22 +137,24 @@ export function WorkflowDetails({
     );
   }
 
- const canUpdate =
-  hasWorkspacePermission(
-    workspace.data.role,
-    "workflow:update"
-  );
+  const canUpdate =
+    hasWorkspacePermission(
+      workspace.data.role,
+      "workflow:update"
+    );
 
-const canEdit =
-  canUpdate &&
-  workflow.data.status !== "ARCHIVED";
+  const canEdit =
+    canUpdate &&
+    workflow.data.status !==
+      "ARCHIVED";
 
-const latestDefinition =
-  workflow.data.versions[0]
-    ?.definition ?? {
-    nodes: [],
-    edges: [],
-  }; 
+  const latestDefinition =
+    workflow.data.versions[0]
+      ?.definition ?? {
+      nodes: [],
+      edges: [],
+    };
+
   return (
     <div className="space-y-6">
       <Card>
@@ -165,7 +171,8 @@ const latestDefinition =
                 </CardTitle>
 
                 <CardDescription className="mt-1">
-                  {workflow.data.description ??
+                  {workflow.data
+                    .description ??
                     "No description provided."}
                 </CardDescription>
               </div>
@@ -181,16 +188,17 @@ const latestDefinition =
       <Card className="overflow-hidden">
         <CardContent className="p-0">
           <WorkflowBuilder
-  workflowId={workflowId}
-  canEdit={canEdit}
-  initialDefinition={
-    latestDefinition
-  }
-/>
+            workflowId={workflowId}
+            workspaceId={workspaceId}
+            canEdit={canEdit}
+            initialDefinition={
+              latestDefinition
+            }
+          />
         </CardContent>
       </Card>
 
-    {canEdit && (
+      {canEdit && (
         <Card>
           <CardHeader>
             <CardTitle>
@@ -246,8 +254,8 @@ const latestDefinition =
                   rows={4}
                   maxLength={500}
                   defaultValue={
-                    workflow.data.description ??
-                    ""
+                    workflow.data
+                      .description ?? ""
                   }
                   disabled={
                     updateWorkflow.isPending
@@ -306,11 +314,13 @@ const latestDefinition =
               >
                 <div>
                   <p className="font-medium">
-                    Version {version.version}
+                    Version{" "}
+                    {version.version}
                   </p>
 
                   <p className="text-sm text-muted-foreground">
-                    Workflow definition snapshot
+                    Workflow definition
+                    snapshot
                   </p>
                 </div>
 
@@ -324,4 +334,4 @@ const latestDefinition =
       </Card>
     </div>
   );
-} 
+}

@@ -7,6 +7,7 @@ import {
 } from "drizzle-orm";
 
 import { requireWorkspacePermission } from "@/features/workspace/authorization";
+import { validateWorkflowForPublish } from "@/features/workflow/validate-publish";
 import {
   archiveWorkflowSchema,
   createWorkflowSchema,
@@ -32,7 +33,8 @@ export const workflowRouter = router({
     .query(async ({ ctx, input }) => {
       await requireWorkspacePermission({
         database: ctx.db,
-        workspaceId: input.workspaceId,
+        workspaceId:
+          input.workspaceId,
         userId: ctx.session.user.id,
         permission: "workflow:read",
       });
@@ -46,9 +48,12 @@ export const workflowRouter = router({
           description:
             workflow.description,
           status: workflow.status,
-          createdBy: workflow.createdBy,
-          createdAt: workflow.createdAt,
-          updatedAt: workflow.updatedAt,
+          createdBy:
+            workflow.createdBy,
+          createdAt:
+            workflow.createdAt,
+          updatedAt:
+            workflow.updatedAt,
         })
         .from(workflow)
         .where(
@@ -88,7 +93,8 @@ export const workflowRouter = router({
       if (!existingWorkflow) {
         throw new TRPCError({
           code: "NOT_FOUND",
-          message: "Workflow not found.",
+          message:
+            "Workflow not found.",
         });
       }
 
@@ -100,34 +106,35 @@ export const workflowRouter = router({
         permission: "workflow:read",
       });
 
-      const versions = await ctx.db
-        .select({
-          id: workflowVersion.id,
-          version:
-            workflowVersion.version,
-          status:
-            workflowVersion.status,
-          definition:
-            workflowVersion.definition,
-          createdBy:
-            workflowVersion.createdBy,
-          createdAt:
-            workflowVersion.createdAt,
-          updatedAt:
-            workflowVersion.updatedAt,
-        })
-        .from(workflowVersion)
-        .where(
-          eq(
-            workflowVersion.workflowId,
-            existingWorkflow.id
+      const versions =
+        await ctx.db
+          .select({
+            id: workflowVersion.id,
+            version:
+              workflowVersion.version,
+            status:
+              workflowVersion.status,
+            definition:
+              workflowVersion.definition,
+            createdBy:
+              workflowVersion.createdBy,
+            createdAt:
+              workflowVersion.createdAt,
+            updatedAt:
+              workflowVersion.updatedAt,
+          })
+          .from(workflowVersion)
+          .where(
+            eq(
+              workflowVersion.workflowId,
+              existingWorkflow.id
+            )
           )
-        )
-        .orderBy(
-          desc(
-            workflowVersion.version
-          )
-        );
+          .orderBy(
+            desc(
+              workflowVersion.version
+            )
+          );
 
       return {
         ...existingWorkflow,
@@ -188,9 +195,22 @@ export const workflowRouter = router({
               })
               .returning();
 
+          if (
+            !createdWorkflow ||
+            !initialVersion
+          ) {
+            throw new TRPCError({
+              code:
+                "INTERNAL_SERVER_ERROR",
+              message:
+                "Failed to create workflow.",
+            });
+          }
+
           return {
             ...createdWorkflow,
-            version: initialVersion,
+            version:
+              initialVersion,
           };
         }
       );
@@ -211,7 +231,19 @@ export const workflowRouter = router({
       if (!existingWorkflow) {
         throw new TRPCError({
           code: "NOT_FOUND",
-          message: "Workflow not found.",
+          message:
+            "Workflow not found.",
+        });
+      }
+
+      if (
+        existingWorkflow.status ===
+        "ARCHIVED"
+      ) {
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message:
+            "Archived workflows cannot be edited.",
         });
       }
 
@@ -229,7 +261,9 @@ export const workflowRouter = router({
         updatedAt: new Date(),
       };
 
-      if (input.name !== undefined) {
+      if (
+        input.name !== undefined
+      ) {
         changes.name = input.name;
       }
 
@@ -248,6 +282,15 @@ export const workflowRouter = router({
             eq(workflow.id, input.id)
           )
           .returning();
+
+      if (!updatedWorkflow) {
+        throw new TRPCError({
+          code:
+            "INTERNAL_SERVER_ERROR",
+          message:
+            "Failed to update workflow.",
+        });
+      }
 
       return updatedWorkflow;
     }),
@@ -269,7 +312,8 @@ export const workflowRouter = router({
       if (!existingWorkflow) {
         throw new TRPCError({
           code: "NOT_FOUND",
-          message: "Workflow not found.",
+          message:
+            "Workflow not found.",
         });
       }
 
@@ -315,8 +359,9 @@ export const workflowRouter = router({
             nodes: input.nodes,
             edges: input.edges,
             variables:
-              latestVersion?.definition
-                .variables ?? {},
+              latestVersion
+                ?.definition.variables ??
+              {},
           };
 
           const [savedVersion] =
@@ -347,8 +392,9 @@ export const workflowRouter = router({
                     workflowId:
                       input.id,
                     version:
-                      (latestVersion?.version ??
-                        0) + 1,
+                      (latestVersion
+                        ?.version ?? 0) +
+                      1,
                     status: "DRAFT",
                     definition,
                     createdBy:
@@ -382,6 +428,157 @@ export const workflowRouter = router({
       );
     }),
 
+  publish: protectedProcedure
+    .input(workflowIdSchema)
+    .mutation(async ({ ctx, input }) => {
+      const [existingWorkflow] =
+        await ctx.db
+          .select()
+          .from(workflow)
+          .where(
+            eq(workflow.id, input.id)
+          )
+          .limit(1);
+
+      if (!existingWorkflow) {
+        throw new TRPCError({
+          code: "NOT_FOUND",
+          message:
+            "Workflow not found.",
+        });
+      }
+
+      if (
+        existingWorkflow.status ===
+        "ARCHIVED"
+      ) {
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message:
+            "Archived workflows cannot be published.",
+        });
+      }
+
+      await requireWorkspacePermission({
+        database: ctx.db,
+        workspaceId:
+          existingWorkflow.workspaceId,
+        userId: ctx.session.user.id,
+        permission: "workflow:update",
+      });
+
+      return ctx.db.transaction(
+        async (transaction) => {
+          const [latestDraft] =
+            await transaction
+              .select()
+              .from(workflowVersion)
+              .where(
+                and(
+                  eq(
+                    workflowVersion.workflowId,
+                    input.id
+                  ),
+                  eq(
+                    workflowVersion.status,
+                    "DRAFT"
+                  )
+                )
+              )
+              .orderBy(
+                desc(
+                  workflowVersion.version
+                )
+              )
+              .limit(1);
+
+          if (!latestDraft) {
+            throw new TRPCError({
+              code: "BAD_REQUEST",
+              message:
+                "This workflow has no draft version to publish.",
+            });
+          }
+
+          const validation =
+            validateWorkflowForPublish(
+              input.id,
+              latestDraft.definition
+            );
+
+          if (!validation.valid) {
+            throw new TRPCError({
+              code: "BAD_REQUEST",
+              message:
+                validation.message,
+            });
+          }
+
+          const [publishedVersion] =
+            await transaction
+              .update(
+                workflowVersion
+              )
+              .set({
+                status: "PUBLISHED",
+                updatedAt: new Date(),
+              })
+              .where(
+                and(
+                  eq(
+                    workflowVersion.id,
+                    latestDraft.id
+                  ),
+                  eq(
+                    workflowVersion.status,
+                    "DRAFT"
+                  )
+                )
+              )
+              .returning();
+
+          if (!publishedVersion) {
+            throw new TRPCError({
+              code: "CONFLICT",
+              message:
+                "The draft changed while it was being published.",
+            });
+          }
+
+          const [activeWorkflow] =
+            await transaction
+              .update(workflow)
+              .set({
+                status: "ACTIVE",
+                updatedAt: new Date(),
+              })
+              .where(
+                eq(
+                  workflow.id,
+                  input.id
+                )
+              )
+              .returning();
+
+          if (!activeWorkflow) {
+            throw new TRPCError({
+              code:
+                "INTERNAL_SERVER_ERROR",
+              message:
+                "Failed to activate the workflow.",
+            });
+          }
+
+          return {
+            workflow:
+              activeWorkflow,
+            version:
+              publishedVersion,
+          };
+        }
+      );
+    }),
+
   archive: protectedProcedure
     .input(archiveWorkflowSchema)
     .mutation(async ({ ctx, input }) => {
@@ -397,7 +594,8 @@ export const workflowRouter = router({
       if (!existingWorkflow) {
         throw new TRPCError({
           code: "NOT_FOUND",
-          message: "Workflow not found.",
+          message:
+            "Workflow not found.",
         });
       }
 
@@ -421,6 +619,15 @@ export const workflowRouter = router({
           )
           .returning();
 
+      if (!archivedWorkflow) {
+        throw new TRPCError({
+          code:
+            "INTERNAL_SERVER_ERROR",
+          message:
+            "Failed to archive workflow.",
+        });
+      }
+
       return archivedWorkflow;
     }),
 
@@ -439,7 +646,8 @@ export const workflowRouter = router({
       if (!existingWorkflow) {
         throw new TRPCError({
           code: "NOT_FOUND",
-          message: "Workflow not found.",
+          message:
+            "Workflow not found.",
         });
       }
 
@@ -454,7 +662,10 @@ export const workflowRouter = router({
       await ctx.db
         .delete(workflow)
         .where(
-          eq(workflow.id, input.id)
+          eq(
+            workflow.id,
+            input.id
+          )
         );
 
       return {

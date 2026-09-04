@@ -43,9 +43,11 @@ import { useTRPC } from "@/trpc/react";
 import { ActionNode } from "./nodes/action-node";
 import { TriggerNode } from "./nodes/trigger-node";
 import { NodeConfigurationPanel } from "./node-configuration-panel";
+import { PublishWorkflowControl } from "./publish-workflow-control";
 
 type WorkflowBuilderProps = {
   workflowId: string;
+  workspaceId: string;
   canEdit: boolean;
   initialDefinition?: {
     nodes: unknown[];
@@ -88,6 +90,7 @@ function getMiniMapNodeColor(
 
 export function WorkflowBuilder({
   workflowId,
+  workspaceId,
   canEdit,
   initialDefinition,
 }: WorkflowBuilderProps) {
@@ -225,7 +228,8 @@ export function WorkflowBuilder({
         description:
           "Configure this workflow action.",
         configuration: {
-          actionType: "HTTP_REQUEST",
+          actionType:
+            "HTTP_REQUEST",
         },
       },
     };
@@ -403,6 +407,19 @@ export function WorkflowBuilder({
             >
               Add action
             </Button>
+
+            <PublishWorkflowControl
+              workflowId={workflowId}
+              workspaceId={workspaceId}
+              nodes={nodes}
+              edges={edges}
+              disabled={
+                saveDefinition.isPending
+              }
+              onError={
+                setValidationError
+              }
+            />
 
             <Button
               type="button"
