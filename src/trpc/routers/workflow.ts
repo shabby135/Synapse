@@ -7,7 +7,6 @@ import {
   ne,
 } from "drizzle-orm";
 
-import { executeAction } from "@/features/workflow/execute-action";
 import { createExecutionPlan } from "@/features/workflow/execution-plan";
 import { validateWorkflowForPublish } from "@/features/workflow/validate-publish";
 import {
@@ -23,6 +22,10 @@ import {
   workflowRunIdSchema,
 } from "@/features/workflow/validator";
 import { requireWorkspacePermission } from "@/features/workspace/authorization";
+import {
+  inngest,
+  workflowRunRequested,
+} from "@/inngest/client";
 import {
   workflow,
   workflowLog,
@@ -42,8 +45,7 @@ export const workflowRouter = router({
     .query(async ({ ctx, input }) => {
       await requireWorkspacePermission({
         database: ctx.db,
-        workspaceId:
-          input.workspaceId,
+        workspaceId: input.workspaceId,
         userId: ctx.session.user.id,
         permission: "workflow:read",
       });
@@ -51,18 +53,13 @@ export const workflowRouter = router({
       return ctx.db
         .select({
           id: workflow.id,
-          workspaceId:
-            workflow.workspaceId,
+          workspaceId: workflow.workspaceId,
           name: workflow.name,
-          description:
-            workflow.description,
+          description: workflow.description,
           status: workflow.status,
-          createdBy:
-            workflow.createdBy,
-          createdAt:
-            workflow.createdAt,
-          updatedAt:
-            workflow.updatedAt,
+          createdBy: workflow.createdBy,
+          createdAt: workflow.createdAt,
+          updatedAt: workflow.updatedAt,
         })
         .from(workflow)
         .where(
@@ -102,8 +99,7 @@ export const workflowRouter = router({
       if (!existingWorkflow) {
         throw new TRPCError({
           code: "NOT_FOUND",
-          message:
-            "Workflow not found.",
+          message: "Workflow not found.",
         });
       }
 
@@ -115,35 +111,30 @@ export const workflowRouter = router({
         permission: "workflow:read",
       });
 
-      const versions =
-        await ctx.db
-          .select({
-            id: workflowVersion.id,
-            version:
-              workflowVersion.version,
-            status:
-              workflowVersion.status,
-            definition:
-              workflowVersion.definition,
-            createdBy:
-              workflowVersion.createdBy,
-            createdAt:
-              workflowVersion.createdAt,
-            updatedAt:
-              workflowVersion.updatedAt,
-          })
-          .from(workflowVersion)
-          .where(
-            eq(
-              workflowVersion.workflowId,
-              existingWorkflow.id
-            )
+      const versions = await ctx.db
+        .select({
+          id: workflowVersion.id,
+          version: workflowVersion.version,
+          status: workflowVersion.status,
+          definition:
+            workflowVersion.definition,
+          createdBy:
+            workflowVersion.createdBy,
+          createdAt:
+            workflowVersion.createdAt,
+          updatedAt:
+            workflowVersion.updatedAt,
+        })
+        .from(workflowVersion)
+        .where(
+          eq(
+            workflowVersion.workflowId,
+            existingWorkflow.id
           )
-          .orderBy(
-            desc(
-              workflowVersion.version
-            )
-          );
+        )
+        .orderBy(
+          desc(workflowVersion.version)
+        );
 
       return {
         ...existingWorkflow,
@@ -156,8 +147,7 @@ export const workflowRouter = router({
     .mutation(async ({ ctx, input }) => {
       await requireWorkspacePermission({
         database: ctx.db,
-        workspaceId:
-          input.workspaceId,
+        workspaceId: input.workspaceId,
         userId: ctx.session.user.id,
         permission: "workflow:create",
       });
@@ -179,8 +169,7 @@ export const workflowRouter = router({
                   input.workspaceId,
                 name: input.name,
                 description:
-                  input.description ||
-                  null,
+                  input.description || null,
                 status: "DRAFT",
                 createdBy:
                   ctx.session.user.id,
@@ -218,8 +207,7 @@ export const workflowRouter = router({
 
           return {
             ...createdWorkflow,
-            version:
-              initialVersion,
+            version: initialVersion,
           };
         }
       );
@@ -240,8 +228,7 @@ export const workflowRouter = router({
       if (!existingWorkflow) {
         throw new TRPCError({
           code: "NOT_FOUND",
-          message:
-            "Workflow not found.",
+          message: "Workflow not found.",
         });
       }
 
@@ -270,9 +257,7 @@ export const workflowRouter = router({
         updatedAt: new Date(),
       };
 
-      if (
-        input.name !== undefined
-      ) {
+      if (input.name !== undefined) {
         changes.name = input.name;
       }
 
@@ -321,8 +306,7 @@ export const workflowRouter = router({
       if (!existingWorkflow) {
         throw new TRPCError({
           code: "NOT_FOUND",
-          message:
-            "Workflow not found.",
+          message: "Workflow not found.",
         });
       }
 
@@ -369,21 +353,17 @@ export const workflowRouter = router({
             edges: input.edges,
             variables:
               latestVersion
-                ?.definition.variables ??
-              {},
+                ?.definition.variables ?? {},
           };
 
           const [savedVersion] =
             latestVersion?.status ===
             "DRAFT"
               ? await transaction
-                  .update(
-                    workflowVersion
-                  )
+                  .update(workflowVersion)
                   .set({
                     definition,
-                    updatedAt:
-                      new Date(),
+                    updatedAt: new Date(),
                   })
                   .where(
                     eq(
@@ -393,17 +373,13 @@ export const workflowRouter = router({
                   )
                   .returning()
               : await transaction
-                  .insert(
-                    workflowVersion
-                  )
+                  .insert(workflowVersion)
                   .values({
                     id: crypto.randomUUID(),
-                    workflowId:
-                      input.id,
+                    workflowId: input.id,
                     version:
                       (latestVersion
-                        ?.version ?? 0) +
-                      1,
+                        ?.version ?? 0) + 1,
                     status: "DRAFT",
                     definition,
                     createdBy:
@@ -426,10 +402,7 @@ export const workflowRouter = router({
               updatedAt: new Date(),
             })
             .where(
-              eq(
-                workflow.id,
-                input.id
-              )
+              eq(workflow.id, input.id)
             );
 
           return savedVersion;
@@ -452,8 +425,7 @@ export const workflowRouter = router({
       if (!existingWorkflow) {
         throw new TRPCError({
           code: "NOT_FOUND",
-          message:
-            "Workflow not found.",
+          message: "Workflow not found.",
         });
       }
 
@@ -525,9 +497,7 @@ export const workflowRouter = router({
 
           const [publishedVersion] =
             await transaction
-              .update(
-                workflowVersion
-              )
+              .update(workflowVersion)
               .set({
                 status: "PUBLISHED",
                 updatedAt: new Date(),
@@ -562,10 +532,7 @@ export const workflowRouter = router({
                 updatedAt: new Date(),
               })
               .where(
-                eq(
-                  workflow.id,
-                  input.id
-                )
+                eq(workflow.id, input.id)
               )
               .returning();
 
@@ -579,10 +546,8 @@ export const workflowRouter = router({
           }
 
           return {
-            workflow:
-              activeWorkflow,
-            version:
-              publishedVersion,
+            workflow: activeWorkflow,
+            version: publishedVersion,
           };
         }
       );
@@ -603,8 +568,7 @@ export const workflowRouter = router({
       if (!existingWorkflow) {
         throw new TRPCError({
           code: "NOT_FOUND",
-          message:
-            "Workflow not found.",
+          message: "Workflow not found.",
         });
       }
 
@@ -624,8 +588,7 @@ export const workflowRouter = router({
         workspaceId:
           existingWorkflow.workspaceId,
         userId: ctx.session.user.id,
-        permission:
-          "workflow:execute",
+        permission: "workflow:execute",
       });
 
       const [publishedVersion] =
@@ -690,21 +653,20 @@ export const workflowRouter = router({
                 ctx.session.user.id,
             });
 
-         await transaction
-  .insert(workflowRunStep)
-  .values(
-    plan.actions.map(
-      (action) => ({
-        id: stepIds.get(
-          action.id
-        )!,
-        runId,
-        nodeId: action.id,
-        nodeType:
-          action.type,
-      })
-    )
-  );
+          await transaction
+            .insert(workflowRunStep)
+            .values(
+              plan.actions.map(
+                (action) => ({
+                  id: stepIds.get(
+                    action.id
+                  )!,
+                  runId,
+                  nodeId: action.id,
+                  nodeType: action.type,
+                })
+              )
+            );
 
           await transaction
             .insert(workflowLog)
@@ -713,324 +675,92 @@ export const workflowRouter = router({
               runId,
               level: "INFO",
               message:
-                "Manual workflow execution queued.",
+                "Workflow execution queued.",
               metadata: {
                 version:
                   publishedVersion.version,
+                engine: "inngest",
               },
             });
         }
       );
 
-      await ctx.db
-        .update(workflowRun)
-        .set({
-          status: "RUNNING",
-          startedAt: new Date(),
-        })
-        .where(
-          eq(workflowRun.id, runId)
-        );
-
-      const outputByNode = new Map<
-        string,
-        Record<string, unknown>
-      >();
-
-      outputByNode.set(
-        plan.trigger.id,
-        input.input
-      );
-
-      for (
-        const action of plan.actions
-      ) {
-        const stepId =
-          stepIds.get(action.id);
-
-        if (!stepId) {
-          throw new TRPCError({
-            code:
-              "INTERNAL_SERVER_ERROR",
-            message:
-              "Execution step is missing.",
-          });
-        }
-
-        const incomingEdges =
-          plan.edges.filter(
-            (edge) =>
-              edge.target ===
-              action.id
-          );
-
-        const onlyIncomingEdge =
-          incomingEdges[0];
-
-        let actionInput: Record<
-          string,
-          unknown
-        > = input.input;
-
-        if (
-          incomingEdges.length === 1 &&
-          onlyIncomingEdge
-        ) {
-          actionInput =
-            outputByNode.get(
-              onlyIncomingEdge.source
-            ) ?? input.input;
-        }
-
-        if (
-          incomingEdges.length > 1
-        ) {
-          actionInput = {
-            dependencies:
-              Object.fromEntries(
-                incomingEdges.map(
-                  (edge) => [
-                    edge.source,
-                    outputByNode.get(
-                      edge.source
-                    ) ?? {},
-                  ]
-                )
-              ),
-          };
-        }
-
-        await ctx.db
-          .update(workflowRunStep)
-          .set({
-            status: "RUNNING",
-            input: actionInput,
-            startedAt: new Date(),
-          })
-          .where(
-            eq(
-              workflowRunStep.id,
-              stepId
-            )
-          );
-
-        const actionType =
-          action.data.configuration
-            ?.actionType;
-
-        await ctx.db
-          .insert(workflowLog)
-          .values({
-            id: crypto.randomUUID(),
+      try {
+        const event =
+          workflowRunRequested.create({
             runId,
-            nodeId: action.id,
-            level: "INFO",
-            message: `Executing ${action.data.label}.`,
-            metadata:
-              typeof actionType ===
-              "string"
-                ? {
-                    actionType,
-                  }
-                : {},
           });
 
-        try {
-          const output =
-            await executeAction({
-              runId,
-              workflowId:
-                input.id,
-              nodeId: action.id,
-              data: action.data,
-              input: actionInput,
-            });
+        await inngest.send({
+          ...event,
+          id: runId,
+        });
+      } catch (error) {
+        const errorMessage =
+          error instanceof Error
+            ? error.message
+            : "Failed to queue workflow execution.";
 
-          outputByNode.set(
-            action.id,
-            output
-          );
-
-          await ctx.db
-            .update(workflowRunStep)
-            .set({
-              status: "SUCCESS",
-              output,
-              completedAt:
-                new Date(),
-            })
-            .where(
-              eq(
-                workflowRunStep.id,
-                stepId
-              )
-            );
-
-          await ctx.db
-            .insert(workflowLog)
-            .values({
-              id: crypto.randomUUID(),
-              runId,
-              nodeId: action.id,
-              level: "INFO",
-              message: `${action.data.label} completed successfully.`,
-              metadata: {},
-            });
-        } catch (error) {
-          const errorMessage =
-            error instanceof Error
-              ? error.message
-              : "Unknown execution error.";
-
-          await ctx.db.transaction(
-            async (transaction) => {
-              await transaction
-                .update(
-                  workflowRunStep
+        await ctx.db.transaction(
+          async (transaction) => {
+            await transaction
+              .update(workflowRun)
+              .set({
+                status: "FAILED",
+                error: errorMessage,
+                completedAt: new Date(),
+              })
+              .where(
+                eq(
+                  workflowRun.id,
+                  runId
                 )
-                .set({
-                  status: "FAILED",
-                  error:
-                    errorMessage,
-                  completedAt:
-                    new Date(),
-                })
-                .where(
-                  eq(
-                    workflowRunStep.id,
-                    stepId
-                  )
-                );
+              );
 
-              await transaction
-                .update(
-                  workflowRunStep
-                )
-                .set({
-                  status: "SKIPPED",
-                  completedAt:
-                    new Date(),
-                })
-                .where(
-                  and(
-                    eq(
-                      workflowRunStep.runId,
-                      runId
-                    ),
-                    eq(
-                      workflowRunStep.status,
-                      "PENDING"
-                    )
-                  )
-                );
-
-              await transaction
-                .update(workflowRun)
-                .set({
-                  status: "FAILED",
-                  error:
-                    errorMessage,
-                  completedAt:
-                    new Date(),
-                })
-                .where(
+            await transaction
+              .update(workflowRunStep)
+              .set({
+                status: "SKIPPED",
+                completedAt: new Date(),
+              })
+              .where(
+                and(
                   eq(
-                    workflowRun.id,
+                    workflowRunStep.runId,
                     runId
+                  ),
+                  eq(
+                    workflowRunStep.status,
+                    "PENDING"
                   )
-                );
+                )
+              );
 
-              await transaction
-                .insert(workflowLog)
-                .values({
-                  id: crypto.randomUUID(),
-                  runId,
-                  nodeId:
-                    action.id,
-                  level: "ERROR",
-                  message:
-                    errorMessage,
-                  metadata: {},
-                });
-            }
-          );
-
-          throw new TRPCError({
-            code:
-              "INTERNAL_SERVER_ERROR",
-            message:
-              errorMessage,
-          });
-        }
-      }
-
-      const terminalActions =
-        plan.actions.filter(
-          (action) =>
-            !plan.edges.some(
-              (edge) =>
-                edge.source ===
-                action.id
-            )
+            await transaction
+              .insert(workflowLog)
+              .values({
+                id: crypto.randomUUID(),
+                runId,
+                level: "ERROR",
+                message: errorMessage,
+                metadata: {
+                  source:
+                    "event-dispatch",
+                },
+              });
+          }
         );
 
-      const onlyTerminalAction =
-        terminalActions[0];
-
-      const runOutput =
-        terminalActions.length === 1 &&
-        onlyTerminalAction
-          ? outputByNode.get(
-              onlyTerminalAction.id
-            ) ?? {}
-          : {
-              branches:
-                Object.fromEntries(
-                  terminalActions.map(
-                    (action) => [
-                      action.id,
-                      outputByNode.get(
-                        action.id
-                      ) ?? {},
-                    ]
-                  )
-                ),
-            };
-
-      await ctx.db.transaction(
-        async (transaction) => {
-          await transaction
-            .update(workflowRun)
-            .set({
-              status: "SUCCESS",
-              output: runOutput,
-              completedAt: new Date(),
-            })
-            .where(
-              eq(
-                workflowRun.id,
-                runId
-              )
-            );
-
-          await transaction
-            .insert(workflowLog)
-            .values({
-              id: crypto.randomUUID(),
-              runId,
-              level: "INFO",
-              message:
-                "Workflow completed successfully.",
-              metadata: {},
-            });
-        }
-      );
+        throw new TRPCError({
+          code:
+            "INTERNAL_SERVER_ERROR",
+          message: errorMessage,
+        });
+      }
 
       return {
         id: runId,
-        status:
-          "SUCCESS" as const,
-        output: runOutput,
+        status: "PENDING" as const,
       };
     }),
 
@@ -1056,8 +786,7 @@ export const workflowRouter = router({
       if (!existingWorkflow) {
         throw new TRPCError({
           code: "NOT_FOUND",
-          message:
-            "Workflow not found.",
+          message: "Workflow not found.",
         });
       }
 
@@ -1142,8 +871,7 @@ export const workflowRouter = router({
       if (!existingWorkflow) {
         throw new TRPCError({
           code: "NOT_FOUND",
-          message:
-            "Workflow not found.",
+          message: "Workflow not found.",
         });
       }
 
@@ -1208,8 +936,7 @@ export const workflowRouter = router({
       if (!existingWorkflow) {
         throw new TRPCError({
           code: "NOT_FOUND",
-          message:
-            "Workflow not found.",
+          message: "Workflow not found.",
         });
       }
 
@@ -1218,8 +945,7 @@ export const workflowRouter = router({
         workspaceId:
           existingWorkflow.workspaceId,
         userId: ctx.session.user.id,
-        permission:
-          "workflow:delete",
+        permission: "workflow:delete",
       });
 
       const [archivedWorkflow] =
@@ -1261,8 +987,7 @@ export const workflowRouter = router({
       if (!existingWorkflow) {
         throw new TRPCError({
           code: "NOT_FOUND",
-          message:
-            "Workflow not found.",
+          message: "Workflow not found.",
         });
       }
 
@@ -1271,17 +996,13 @@ export const workflowRouter = router({
         workspaceId:
           existingWorkflow.workspaceId,
         userId: ctx.session.user.id,
-        permission:
-          "workflow:delete",
+        permission: "workflow:delete",
       });
 
       await ctx.db
         .delete(workflow)
         .where(
-          eq(
-            workflow.id,
-            input.id
-          )
+          eq(workflow.id, input.id)
         );
 
       return {
