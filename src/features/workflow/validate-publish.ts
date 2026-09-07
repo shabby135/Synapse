@@ -1,5 +1,13 @@
 import type { WorkflowDefinition } from "@/lib/db/schema/workflow";
 
+import {
+  AiPromptActionError,
+  parseAiPromptConfiguration,
+} from "./ai-prompt-configuration";
+import {
+  HttpActionError,
+  parseHttpActionConfiguration,
+} from "./http-request-configuration";
 import { saveWorkflowDefinitionSchema } from "./validator";
 
 export type PublishValidationResult =
@@ -10,6 +18,13 @@ export type PublishValidationResult =
       valid: false;
       message: string;
     };
+
+const supportedActionTypes =
+  new Set<string>([
+    "NO_OP",
+    "HTTP_REQUEST",
+    "AI_PROMPT",
+  ]);
 
 export function validateWorkflowForPublish(
   workflowId: string,
@@ -32,10 +47,7 @@ export function validateWorkflowForPublish(
     };
   }
 
-  const {
-    nodes,
-    edges,
-  } = parsed.data;
+  const { nodes, edges } = parsed.data;
 
   const trigger = nodes.find(
     (node) =>
@@ -82,13 +94,59 @@ export function validateWorkflowForPublish(
         ?.actionType;
 
     if (
-      typeof actionType !==
-        "string" ||
+      typeof actionType !== "string" ||
       !actionType.trim()
     ) {
       return {
         valid: false,
         message: `${action.data.label} requires an action type.`,
+      };
+    }
+
+    if (
+      !supportedActionTypes.has(
+        actionType
+      )
+    ) {
+      return {
+        valid: false,
+        message: `${action.data.label} uses an action type that is not implemented yet.`,
+      };
+    }
+
+    try {
+      if (
+        actionType ===
+        "HTTP_REQUEST"
+      ) {
+        parseHttpActionConfiguration(
+          action.data
+        );
+      }
+
+      if (
+        actionType === "AI_PROMPT"
+      ) {
+        parseAiPromptConfiguration(
+          action.data
+        );
+      }
+    } catch (error) {
+      if (
+        error instanceof
+          HttpActionError ||
+        error instanceof
+          AiPromptActionError
+      ) {
+        return {
+          valid: false,
+          message: `${action.data.label}: ${error.message}`,
+        };
+      }
+
+      return {
+        valid: false,
+        message: `${action.data.label} has invalid configuration.`,
       };
     }
   }

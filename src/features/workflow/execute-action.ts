@@ -1,3 +1,5 @@
+import { executeAiPrompt } from "./execute-ai-prompt";
+import { executeHttpRequest } from "./execute-http-request";
 import type { WorkflowNodeData } from "./types";
 
 type ExecuteActionOptions = {
@@ -51,6 +53,18 @@ export async function executeAction({
         nodeId,
         receivedInput: input,
       };
+
+    case "HTTP_REQUEST":
+      return executeHttpRequest({
+        data,
+        input,
+      });
+
+    case "AI_PROMPT":
+      return executeAiPrompt({
+        data,
+        input,
+      });
 
     default:
       throw new UnsupportedWorkflowActionError(

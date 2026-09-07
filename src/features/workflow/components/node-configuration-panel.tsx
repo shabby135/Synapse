@@ -21,6 +21,9 @@ import type {
   WorkflowNodeData,
 } from "@/features/workflow/types";
 
+import { AiActionConfiguration } from "./ai-action-configuration";
+import { HttpActionConfiguration } from "./http-action-configuration";
+
 type NodeConfigurationPanelProps = {
   node: WorkflowCanvasNode | null;
   canEdit: boolean;
@@ -28,9 +31,7 @@ type NodeConfigurationPanelProps = {
     nodeId: string,
     data: WorkflowNodeData
   ) => void;
-  onDelete: (
-    nodeId: string
-  ) => void;
+  onDelete: (nodeId: string) => void;
 };
 
 const actionTypes = [
@@ -83,8 +84,8 @@ export function NodeConfigurationPanel({
     typeof selectedNode.data
       .configuration?.actionType ===
     "string"
-      ? selectedNode.data
-          .configuration.actionType
+      ? selectedNode.data.configuration
+          .actionType
       : "NO_OP";
 
   function updateData(
@@ -101,9 +102,54 @@ export function NodeConfigurationPanel({
   ) {
     updateData({
       configuration: {
-        ...selectedNode.data
-          .configuration,
+        ...selectedNode.data.configuration,
         ...changes,
+      },
+    });
+  }
+
+  function changeActionType(
+    nextActionType: string
+  ) {
+    if (
+      nextActionType === "HTTP_REQUEST"
+    ) {
+      updateData({
+        configuration: {
+          actionType: "HTTP_REQUEST",
+          method: "GET",
+          url: "",
+          headersJson: "{}",
+          body: "",
+          timeoutMs: 10_000,
+          failOnHttpError: true,
+        },
+      });
+
+      return;
+    }
+
+   if (nextActionType === "AI_PROMPT") {
+  updateData({
+    configuration: {
+      actionType: "AI_PROMPT",
+      provider: "GEMINI",
+      model: "gemini-3-flash-preview",
+      systemPrompt:
+        "You are a helpful assistant.",
+      prompt:
+        "Process the following workflow input:\n\n{{input}}",
+      maxOutputTokens: 1000,
+    },
+  });
+
+  return;
+
+    }
+
+    updateData({
+      configuration: {
+        actionType: nextActionType,
       },
     });
   }
@@ -190,38 +236,67 @@ export function NodeConfigurationPanel({
               </div>
             </div>
           ) : (
-            <div className="space-y-2">
-              <label
-                htmlFor="action-type"
-                className="text-sm font-medium"
-              >
-                Action type
-              </label>
+            <>
+              <div className="space-y-2">
+                <label
+                  htmlFor="action-type"
+                  className="text-sm font-medium"
+                >
+                  Action type
+                </label>
 
-              <select
-                id="action-type"
-                value={actionType}
-                disabled={!canEdit}
-                onChange={(event) =>
-                  updateConfiguration({
-                    actionType:
-                      event.target.value,
-                  })
-                }
-                className="h-9 w-full rounded-md border bg-background px-3 text-sm outline-none focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/50 disabled:cursor-not-allowed disabled:opacity-50"
-              >
-                {actionTypes.map(
-                  (action) => (
-                    <option
-                      key={action.value}
-                      value={action.value}
-                    >
-                      {action.label}
-                    </option>
-                  )
-                )}
-              </select>
-            </div>
+                <select
+                  id="action-type"
+                  value={actionType}
+                  disabled={!canEdit}
+                  onChange={(event) =>
+                    changeActionType(
+                      event.target.value
+                    )
+                  }
+                  className="h-9 w-full rounded-md border bg-background px-3 text-sm outline-none focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/50 disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  {actionTypes.map(
+                    (action) => (
+                      <option
+                        key={action.value}
+                        value={action.value}
+                      >
+                        {action.label}
+                      </option>
+                    )
+                  )}
+                </select>
+              </div>
+
+              {actionType ===
+                "HTTP_REQUEST" && (
+                <HttpActionConfiguration
+                  configuration={
+                    selectedNode.data
+                      .configuration ?? {}
+                  }
+                  canEdit={canEdit}
+                  onChange={
+                    updateConfiguration
+                  }
+                />
+              )}
+
+              {actionType ===
+                "AI_PROMPT" && (
+                <AiActionConfiguration
+                  configuration={
+                    selectedNode.data
+                      .configuration ?? {}
+                  }
+                  canEdit={canEdit}
+                  onChange={
+                    updateConfiguration
+                  }
+                />
+              )}
+            </>
           )}
 
           {canEdit &&
