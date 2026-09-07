@@ -1,9 +1,9 @@
+import { WorkspaceIntegrations } from "@/features/integration/components/workspace-integrations";
+import { CreateWorkflowForm } from "@/features/workflow/components/create-workflow-form";
+import { WorkflowList } from "@/features/workflow/components/workflow-list";
 import { AddWorkspaceMemberForm } from "@/features/workspace/components/add-workspace-member-form";
 import { WorkspaceDetails } from "@/features/workspace/components/workspace-details";
 import { WorkspaceMembers } from "@/features/workspace/components/workspace-members";
-
-import { CreateWorkflowForm } from "@/features/workflow/components/create-workflow-form";
-import { WorkflowList } from "@/features/workflow/components/workflow-list";
 
 type WorkspacePageProps = {
   params: Promise<{
@@ -27,6 +27,10 @@ export default async function WorkspacePage({
       />
 
       <WorkflowList
+        workspaceId={workspaceId}
+      />
+
+      <WorkspaceIntegrations
         workspaceId={workspaceId}
       />
 

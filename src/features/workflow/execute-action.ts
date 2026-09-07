@@ -1,6 +1,15 @@
-import { executeAiPrompt } from "./execute-ai-prompt";
-import { executeHttpRequest } from "./execute-http-request";
-import type { WorkflowNodeData } from "./types";
+import {
+  executeAiPrompt,
+} from "./execute-ai-prompt";
+import {
+  executeHttpRequest,
+} from "./execute-http-request";
+import {
+  executeMessagingAction,
+} from "./execute-messaging-action";
+import type {
+  WorkflowNodeData,
+} from "./types";
 
 type ExecuteActionOptions = {
   runId: string;
@@ -10,7 +19,8 @@ type ExecuteActionOptions = {
   input: Record<string, unknown>;
 };
 
-export class UnsupportedWorkflowActionError extends Error {
+export class UnsupportedWorkflowActionError
+  extends Error {
   constructor(actionType: string) {
     super(
       `Action type ${actionType} is not implemented yet.`
@@ -62,6 +72,14 @@ export async function executeAction({
 
     case "AI_PROMPT":
       return executeAiPrompt({
+        data,
+        input,
+      });
+
+    case "SLACK_MESSAGE":
+    case "DISCORD_MESSAGE":
+      return executeMessagingAction({
+        workflowId,
         data,
         input,
       });

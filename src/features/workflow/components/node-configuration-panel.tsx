@@ -23,8 +23,10 @@ import type {
 
 import { AiActionConfiguration } from "./ai-action-configuration";
 import { HttpActionConfiguration } from "./http-action-configuration";
+import { MessagingActionConfiguration } from "./messaging-action-configuration";
 
 type NodeConfigurationPanelProps = {
+  workspaceId: string;
   node: WorkflowCanvasNode | null;
   canEdit: boolean;
   onUpdate: (
@@ -58,6 +60,7 @@ const actionTypes = [
 ] as const;
 
 export function NodeConfigurationPanel({
+  workspaceId,
   node,
   canEdit,
   onUpdate,
@@ -81,9 +84,8 @@ export function NodeConfigurationPanel({
   const selectedNode = node;
 
   const actionType =
-    typeof selectedNode.data
-      .configuration?.actionType ===
-    "string"
+    typeof selectedNode.data.configuration
+      ?.actionType === "string"
       ? selectedNode.data.configuration
           .actionType
       : "NO_OP";
@@ -129,22 +131,39 @@ export function NodeConfigurationPanel({
       return;
     }
 
-   if (nextActionType === "AI_PROMPT") {
-  updateData({
-    configuration: {
-      actionType: "AI_PROMPT",
-      provider: "GEMINI",
-      model: "gemini-3-flash-preview",
-      systemPrompt:
-        "You are a helpful assistant.",
-      prompt:
-        "Process the following workflow input:\n\n{{input}}",
-      maxOutputTokens: 1000,
-    },
-  });
+    if (nextActionType === "AI_PROMPT") {
+      updateData({
+        configuration: {
+          actionType: "AI_PROMPT",
+          provider: "GEMINI",
+          model: "gemini-3-flash-preview",
+          systemPrompt:
+            "You are a helpful assistant.",
+          prompt:
+            "Process the following workflow input:\n\n{{input}}",
+          maxOutputTokens: 1_000,
+        },
+      });
 
-  return;
+      return;
+    }
 
+    if (
+      nextActionType ===
+        "SLACK_MESSAGE" ||
+      nextActionType ===
+        "DISCORD_MESSAGE"
+    ) {
+      updateData({
+        configuration: {
+          actionType: nextActionType,
+          integrationId: "",
+          message:
+            "Workflow completed:\n\n{{input}}",
+        },
+      });
+
+      return;
     }
 
     updateData({
@@ -183,15 +202,12 @@ export function NodeConfigurationPanel({
 
             <Input
               id="node-label"
-              value={
-                selectedNode.data.label
-              }
+              value={selectedNode.data.label}
               maxLength={100}
               disabled={!canEdit}
               onChange={(event) =>
                 updateData({
-                  label:
-                    event.target.value,
+                  label: event.target.value,
                 })
               }
             />
@@ -296,6 +312,38 @@ export function NodeConfigurationPanel({
                   }
                 />
               )}
+
+              {actionType ===
+                "SLACK_MESSAGE" && (
+                <MessagingActionConfiguration
+                  workspaceId={workspaceId}
+                  provider="SLACK"
+                  configuration={
+                    selectedNode.data
+                      .configuration ?? {}
+                  }
+                  canEdit={canEdit}
+                  onChange={
+                    updateConfiguration
+                  }
+                />
+              )}
+
+              {actionType ===
+                "DISCORD_MESSAGE" && (
+                <MessagingActionConfiguration
+                  workspaceId={workspaceId}
+                  provider="DISCORD"
+                  configuration={
+                    selectedNode.data
+                      .configuration ?? {}
+                  }
+                  canEdit={canEdit}
+                  onChange={
+                    updateConfiguration
+                  }
+                />
+              )}
             </>
           )}
 
@@ -307,9 +355,7 @@ export function NodeConfigurationPanel({
                 variant="destructive"
                 className="w-full"
                 onClick={() =>
-                  setDeleteDialogOpen(
-                    true
-                  )
+                  setDeleteDialogOpen(true)
                 }
               >
                 <Trash2 className="size-4" />
@@ -337,11 +383,10 @@ export function NodeConfigurationPanel({
 
             <DialogDescription>
               This will remove “
-              {selectedNode.data.label}”
-              and all connections attached
-              to it. The change will become
-              permanent after you save the
-              workflow.
+              {selectedNode.data.label}” and
+              all connections attached to it.
+              The change will become permanent
+              after you save the workflow.
             </DialogDescription>
           </DialogHeader>
 
@@ -350,9 +395,7 @@ export function NodeConfigurationPanel({
               type="button"
               variant="outline"
               onClick={() =>
-                setDeleteDialogOpen(
-                  false
-                )
+                setDeleteDialogOpen(false)
               }
             >
               Cancel

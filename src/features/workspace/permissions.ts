@@ -13,7 +13,9 @@ export type WorkspacePermission =
   | "workflow:create"
   | "workflow:update"
   | "workflow:delete"
-  | "workflow:execute";
+  | "workflow:execute"
+  | "integration:read"
+  | "integration:manage";
 
 const permissionsByRole: Record<
   WorkspaceRole,
@@ -29,6 +31,8 @@ const permissionsByRole: Record<
     "workflow:update",
     "workflow:delete",
     "workflow:execute",
+    "integration:read",
+    "integration:manage",
   ],
 
   ADMIN: [
@@ -40,6 +44,8 @@ const permissionsByRole: Record<
     "workflow:update",
     "workflow:delete",
     "workflow:execute",
+    "integration:read",
+    "integration:manage",
   ],
 
   EDITOR: [
@@ -48,6 +54,7 @@ const permissionsByRole: Record<
     "workflow:create",
     "workflow:update",
     "workflow:execute",
+    "integration:read",
   ],
 
   VIEWER: [
@@ -59,7 +66,7 @@ const permissionsByRole: Record<
 export function hasWorkspacePermission(
   role: WorkspaceRole,
   permission: WorkspacePermission
-) {
+): boolean {
   return permissionsByRole[
     role
   ].includes(permission);

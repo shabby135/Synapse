@@ -43,6 +43,13 @@
       "when": 1788558008724,
       "tag": "0005_futuristic_sunfire",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1788780480748,
+      "tag": "0006_superb_lyja",
+      "breakpoints": true
     }
   ]
 }

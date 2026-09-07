@@ -1,4 +1,6 @@
-import type { WorkflowDefinition } from "@/lib/db/schema/workflow";
+import type {
+  WorkflowDefinition,
+} from "@/lib/db/schema/workflow";
 
 import {
   AiPromptActionError,
@@ -8,7 +10,13 @@ import {
   HttpActionError,
   parseHttpActionConfiguration,
 } from "./http-request-configuration";
-import { saveWorkflowDefinitionSchema } from "./validator";
+import {
+  MessagingActionError,
+  parseMessagingActionConfiguration,
+} from "./messaging-action-configuration";
+import {
+  saveWorkflowDefinitionSchema,
+} from "./validator";
 
 export type PublishValidationResult =
   | {
@@ -24,6 +32,8 @@ const supportedActionTypes =
     "NO_OP",
     "HTTP_REQUEST",
     "AI_PROMPT",
+    "SLACK_MESSAGE",
+    "DISCORD_MESSAGE",
   ]);
 
 export function validateWorkflowForPublish(
@@ -131,12 +141,25 @@ export function validateWorkflowForPublish(
           action.data
         );
       }
+
+      if (
+        actionType ===
+          "SLACK_MESSAGE" ||
+        actionType ===
+          "DISCORD_MESSAGE"
+      ) {
+        parseMessagingActionConfiguration(
+          action.data
+        );
+      }
     } catch (error) {
       if (
         error instanceof
           HttpActionError ||
         error instanceof
-          AiPromptActionError
+          AiPromptActionError ||
+        error instanceof
+          MessagingActionError
       ) {
         return {
           valid: false,
