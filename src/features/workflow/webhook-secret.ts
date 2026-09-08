@@ -1,13 +1,4 @@
-import { router } from "../init";
-
-import { userRouter } from "./user";
-import { workflowRouter } from "./workflow";
-import { integrationRouter } from "./integration";
-import { workspaceRouter } from "./workspace";
 import "server-only";
-import {
-  workflowWebhookRouter,
-} from "./workflow-webhook";
 
 import {
   createHash,
@@ -63,15 +54,3 @@ export function verifyWebhookSecret({
     expectedBuffer
   );
 }
-
-export const appRouter = router({
-    integration: integrationRouter,
-  user: userRouter,
-  workspace: workspaceRouter,
-  workflow: workflowRouter,
-
-  workflowWebhook:
-    workflowWebhookRouter,
-});
-
-export type AppRouter = typeof appRouter;

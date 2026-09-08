@@ -50,6 +50,13 @@
       "when": 1788780480748,
       "tag": "0006_superb_lyja",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1788793918047,
+      "tag": "0007_strange_kronos",
+      "breakpoints": true
     }
   ]
 }

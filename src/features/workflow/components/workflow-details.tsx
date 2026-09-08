@@ -32,6 +32,7 @@ import { useTRPC } from "@/trpc/react";
 import { RunWorkflowControl } from "./run-workflow-control";
 import { WorkflowBuilder } from "./workflow-builder";
 import { WorkflowRunDetailsDialog } from "./workflow-run-details-dialog";
+import { WorkflowWebhookControl } from "./workflow-webhook-controller";
 
 type WorkflowDetailsProps = {
   workspaceId: string;
@@ -56,6 +57,21 @@ function getRunStatusClassName(
 
     default:
       return "bg-amber-500/10 text-amber-700";
+  }
+}
+
+function getRunTriggerLabel(
+  triggerType: string
+) {
+  switch (triggerType) {
+    case "WEBHOOK":
+      return "Webhook run";
+
+    case "SCHEDULE":
+      return "Scheduled run";
+
+    default:
+      return "Manual run";
   }
 }
 
@@ -108,9 +124,7 @@ export function WorkflowDetails({
           ),
         ]);
 
-        toast.success(
-          "Workflow updated."
-        );
+        toast.success("Workflow updated.");
       },
     })
   );
@@ -251,6 +265,15 @@ export function WorkflowDetails({
         </CardContent>
       </Card>
 
+      <WorkflowWebhookControl
+        workflowId={workflowId}
+        canManage={canUpdate}
+        isActive={
+          workflow.data.status ===
+          "ACTIVE"
+        }
+      />
+
       {canEdit && (
         <Card>
           <CardHeader>
@@ -354,7 +377,8 @@ export function WorkflowDetails({
           </div>
 
           <CardDescription>
-            Recent manual executions of this
+            Recent manual, webhook, and
+            scheduled executions of this
             workflow.
           </CardDescription>
         </CardHeader>
@@ -394,7 +418,9 @@ export function WorkflowDetails({
               >
                 <div>
                   <p className="font-medium">
-                    Manual run
+                    {getRunTriggerLabel(
+                      run.triggerType
+                    )}
                   </p>
 
                   <p className="mt-1 text-xs text-muted-foreground">

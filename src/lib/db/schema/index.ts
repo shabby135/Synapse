@@ -4,3 +4,4 @@ export * from "./workspace-member";
 export * from "./workspace-integration";
 export * from "./workflow";
 export * from "./workflow-execution";
+export * from "./workflow-webhook";
