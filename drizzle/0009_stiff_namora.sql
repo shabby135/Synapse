@@ -1,0 +1,1 @@
+ALTER TABLE "workspace_usage" ADD COLUMN "ai_other_tokens" integer DEFAULT 0 NOT NULL;

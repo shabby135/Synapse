@@ -14,6 +14,10 @@ import {
   randomBytes,
   timingSafeEqual,
 } from "node:crypto";
+import { billingRouter } from "./billing";
+import {
+  monitoringRouter,
+} from "./monitoring";
 
 const WEBHOOK_SECRET_BYTES = 32;
 
@@ -69,9 +73,11 @@ export const appRouter = router({
   user: userRouter,
   workspace: workspaceRouter,
   workflow: workflowRouter,
+  monitoring: monitoringRouter,
 
   workflowWebhook:
     workflowWebhookRouter,
+  billing: billingRouter,
 });
 
 export type AppRouter = typeof appRouter;

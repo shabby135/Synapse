@@ -3,11 +3,17 @@ import {
   eq,
   ne,
 } from "drizzle-orm";
+import {
+  assertAiTokenAllowance,
+  consumeActionExecutionAllowance,
+  recordAiTokenUsage,
+} from "@/features/billing/usage";
 
 import { executeAction } from "@/features/workflow/execute-action";
 import { createExecutionPlan } from "@/features/workflow/execution-plan";
 import { db } from "@/lib/db";
 import {
+  workflow,
   workflowLog,
   workflowRun,
   workflowRunStep,
@@ -25,6 +31,77 @@ function getErrorMessage(
   return error instanceof Error
     ? error.message
     : "Unknown workflow execution error.";
+}
+
+function getAiTokenUsage(
+  output: Record<string, unknown>
+): {
+  inputTokens: number;
+  outputTokens: number;
+  totalTokens: number | null;
+} | null {
+  const usage = output.usage;
+
+  if (
+    !usage ||
+    typeof usage !== "object" ||
+    Array.isArray(usage)
+  ) {
+    return null;
+  }
+
+  const usageRecord =
+    usage as Record<
+      string,
+      unknown
+    >;
+
+  const inputTokens =
+    usageRecord.inputTokens;
+
+  const outputTokens =
+    usageRecord.outputTokens;
+
+  const reportedTotalTokens =
+    usageRecord.totalTokens;
+
+  if (
+    typeof inputTokens !==
+      "number" ||
+    !Number.isSafeInteger(
+      inputTokens
+    ) ||
+    inputTokens < 0
+  ) {
+    return null;
+  }
+
+  if (
+    typeof outputTokens !==
+      "number" ||
+    !Number.isSafeInteger(
+      outputTokens
+    ) ||
+    outputTokens < 0
+  ) {
+    return null;
+  }
+
+  const totalTokens =
+    typeof reportedTotalTokens ===
+      "number" &&
+    Number.isSafeInteger(
+      reportedTotalTokens
+    ) &&
+    reportedTotalTokens >= 0
+      ? reportedTotalTokens
+      : null;
+
+  return {
+    inputTokens,
+    outputTokens,
+    totalTokens,
+  };
 }
 
 export const executeWorkflow =
@@ -50,11 +127,13 @@ export const executeWorkflow =
         error,
       }) => {
         const runId =
-  event.data.event.data.runId;
+          event.data.event.data.runId;
 
-if (typeof runId !== "string") {
-  return;
-}
+        if (
+          typeof runId !== "string"
+        ) {
+          return;
+        }
 
         const [existingRun] =
           await db
@@ -226,9 +305,33 @@ if (typeof runId !== "string") {
               );
             }
 
+            const [
+              existingWorkflow,
+            ] = await db
+              .select({
+                workspaceId:
+                  workflow.workspaceId,
+              })
+              .from(workflow)
+              .where(
+                eq(
+                  workflow.id,
+                  run.workflowId
+                )
+              )
+              .limit(1);
+
+            if (!existingWorkflow) {
+              throw new Error(
+                "Workflow not found."
+              );
+            }
+
             return {
               workflowId:
                 run.workflowId,
+              workspaceId:
+                existingWorkflow.workspaceId,
               input: run.input,
               definition:
                 version.definition,
@@ -352,6 +455,8 @@ if (typeof runId !== "string") {
                 await db
                   .select({
                     id: workflowRunStep.id,
+                    status:
+                      workflowRunStep.status,
                   })
                   .from(
                     workflowRunStep
@@ -373,6 +478,29 @@ if (typeof runId !== "string") {
               if (!runStep) {
                 throw new Error(
                   `Execution step for node ${action.id} is missing.`
+                );
+              }
+
+              const actionType =
+                action.data
+                  .configuration
+                  ?.actionType;
+
+              if (
+                actionType ===
+                "AI_PROMPT"
+              ) {
+                await assertAiTokenAllowance(
+                  executionData.workspaceId
+                );
+              }
+
+              if (
+                runStep.status ===
+                "PENDING"
+              ) {
+                await consumeActionExecutionAllowance(
+                  executionData.workspaceId
                 );
               }
 
@@ -466,6 +594,94 @@ if (typeof runId !== "string") {
               return actionOutput;
             }
           );
+
+        const actionType =
+          action.data.configuration
+            ?.actionType;
+
+        if (
+          actionType === "AI_PROMPT"
+        ) {
+          await step.run(
+            `record-ai-usage-${action.id}`,
+            async () => {
+              const tokenUsage =
+                getAiTokenUsage(
+                  output
+                );
+
+              if (!tokenUsage) {
+                await db
+                  .insert(workflowLog)
+                  .values({
+                    id: `${runId}:${action.id}:ai-usage-missing`,
+                    runId,
+                    nodeId:
+                      action.id,
+                    level: "WARN",
+                    message:
+                      "AI token usage was not returned by the provider.",
+                    metadata: {
+                      actionType,
+                    },
+                  })
+                  .onConflictDoNothing();
+
+                return {
+                  recorded: false,
+                };
+              }
+
+              const recordedUsage =
+                await recordAiTokenUsage(
+                  {
+                    workspaceId:
+                      executionData.workspaceId,
+                    inputTokens:
+                      tokenUsage.inputTokens,
+                    outputTokens:
+                      tokenUsage.outputTokens,
+                    totalTokens:
+                      tokenUsage.totalTokens,
+                  }
+                );
+
+              await db
+                .insert(workflowLog)
+                .values({
+                  id: `${runId}:${action.id}:ai-usage-recorded`,
+                  runId,
+                  nodeId: action.id,
+                  level: "INFO",
+                  message:
+                    "AI token usage recorded.",
+                  metadata: {
+                    inputTokens:
+                      tokenUsage.inputTokens,
+                    outputTokens:
+                      tokenUsage.outputTokens,
+                    totalTokens:
+                      tokenUsage.totalTokens ??
+                      (
+                        tokenUsage.inputTokens +
+                        tokenUsage.outputTokens
+                      ),
+                  },
+                })
+                .onConflictDoNothing();
+
+              return {
+                recorded: true,
+                inputTokens:
+                  tokenUsage.inputTokens,
+                outputTokens:
+                  tokenUsage.outputTokens,
+                cumulativeTotalTokens:
+                  recordedUsage.totalTokens,
+              };
+            }
+          );
+        }
 
         outputByNode.set(
           action.id,

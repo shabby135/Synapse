@@ -1,6 +1,7 @@
 import { CreateWorkspaceForm } from "@/features/workspace/components/create-workspace-form";
 import { WorkspaceList } from "@/features/workspace/components/workspace-list";
 
+
 export default function WorkspacesPage() {
   return (
     <div className="space-y-6">

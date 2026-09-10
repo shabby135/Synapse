@@ -15,7 +15,9 @@ export type WorkspacePermission =
   | "workflow:delete"
   | "workflow:execute"
   | "integration:read"
-  | "integration:manage";
+  | "integration:manage"
+  | "billing:read"
+  | "billing:manage";
 
 const permissionsByRole: Record<
   WorkspaceRole,
@@ -33,6 +35,8 @@ const permissionsByRole: Record<
     "workflow:execute",
     "integration:read",
     "integration:manage",
+    "billing:read",
+    "billing:manage",
   ],
 
   ADMIN: [
@@ -46,6 +50,7 @@ const permissionsByRole: Record<
     "workflow:execute",
     "integration:read",
     "integration:manage",
+    "billing:read",
   ],
 
   EDITOR: [
