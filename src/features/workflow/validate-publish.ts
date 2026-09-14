@@ -1,3 +1,5 @@
+import { configurationForPublish, DataMappingError, getAncestorNodeIds } from "./data-mapping";
+
 import type {
   WorkflowDefinition,
 } from "@/lib/db/schema/workflow";
@@ -125,12 +127,19 @@ export function validateWorkflowForPublish(
     }
 
     try {
+      const validationData = {
+        ...action.data,
+        configuration: configurationForPublish(
+          action.data.configuration ?? {},
+          getAncestorNodeIds(action.id, edges)
+        ),
+      };
       if (
         actionType ===
         "HTTP_REQUEST"
       ) {
         parseHttpActionConfiguration(
-          action.data
+          validationData
         );
       }
 
@@ -138,7 +147,7 @@ export function validateWorkflowForPublish(
         actionType === "AI_PROMPT"
       ) {
         parseAiPromptConfiguration(
-          action.data
+          validationData
         );
       }
 
@@ -149,11 +158,12 @@ export function validateWorkflowForPublish(
           "DISCORD_MESSAGE"
       ) {
         parseMessagingActionConfiguration(
-          action.data
+          validationData
         );
       }
     } catch (error) {
       if (
+        error instanceof DataMappingError ||
         error instanceof
           HttpActionError ||
         error instanceof

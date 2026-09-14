@@ -9,6 +9,7 @@ import {
   recordAiTokenUsage,
 } from "@/features/billing/usage";
 
+import { getAncestorNodeIds } from "@/features/workflow/data-mapping";
 import { executeAction } from "@/features/workflow/execute-action";
 import { createExecutionPlan } from "@/features/workflow/execution-plan";
 import { db } from "@/lib/db";
@@ -548,6 +549,15 @@ export const executeWorkflow =
                   nodeId: action.id,
                   data: action.data,
                   input: actionInput,
+                  mappingContext: {
+                    trigger: executionData.input,
+                    input: actionInput,
+                    nodes: Object.fromEntries(
+                      [...getAncestorNodeIds(action.id, plan.edges)]
+                        .filter((id) => outputByNode.has(id))
+                        .map((id) => [id, outputByNode.get(id)!])
+                    ),
+                  },
                 });
 
               await db.transaction(

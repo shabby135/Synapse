@@ -13,6 +13,8 @@ import type { WorkflowNodeData } from "./types";
 type ExecuteAiPromptOptions = {
   data: WorkflowNodeData;
   input: Record<string, unknown>;
+  templatesResolved?: boolean;
+  appendInput?: boolean;
 };
 
 const MAX_INPUT_LENGTH = 100_000;
@@ -74,19 +76,19 @@ function buildPrompt(
 export async function executeAiPrompt({
   data,
   input,
+  templatesResolved = false,
+  appendInput = true,
 }: ExecuteAiPromptOptions): Promise<
   Record<string, unknown>
 > {
   const configuration =
     parseAiPromptConfiguration(data);
 
-  const serializedInput =
-    serializeInput(input);
-
-  const resolvedPrompt = buildPrompt(
-    configuration.prompt,
-    serializedInput
-  );
+  const resolvedPrompt = templatesResolved
+    ? appendInput
+      ? [configuration.prompt, "", "Workflow input:", serializeInput(input)].join("\n")
+      : configuration.prompt
+    : buildPrompt(configuration.prompt, serializeInput(input));
 
   if (
     configuration.provider ===

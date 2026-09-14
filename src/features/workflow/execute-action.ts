@@ -1,3 +1,5 @@
+import { resolveActionConfiguration, type MappingContext } from "./data-mapping";
+
 import {
   executeAiPrompt,
 } from "./execute-ai-prompt";
@@ -17,6 +19,7 @@ type ExecuteActionOptions = {
   nodeId: string;
   data: WorkflowNodeData;
   input: Record<string, unknown>;
+  mappingContext?: MappingContext;
 };
 
 export class UnsupportedWorkflowActionError
@@ -37,9 +40,19 @@ export async function executeAction({
   nodeId,
   data,
   input,
+  mappingContext,
 }: ExecuteActionOptions): Promise<
   Record<string, unknown>
 > {
+  const originalPrompt = data.configuration?.prompt;
+  const promptHadMapping = typeof originalPrompt === "string" && originalPrompt.includes("{{");
+  data = {
+    ...data,
+    configuration: resolveActionConfiguration(data.configuration ?? {}, mappingContext ?? {
+      trigger: input, input, nodes: {},
+    }),
+  };
+
   const actionType =
     data.configuration?.actionType;
 
@@ -74,6 +87,8 @@ export async function executeAction({
       return executeAiPrompt({
         data,
         input,
+        templatesResolved: true,
+        appendInput: !promptHadMapping,
       });
 
     case "SLACK_MESSAGE":
@@ -82,6 +97,7 @@ export async function executeAction({
         workflowId,
         data,
         input,
+        templatesResolved: true,
       });
 
     default:

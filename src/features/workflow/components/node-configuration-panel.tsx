@@ -18,15 +18,19 @@ import {
 import { Input } from "@/components/ui/input";
 import type {
   WorkflowCanvasNode,
+  WorkflowCanvasEdge,
   WorkflowNodeData,
 } from "@/features/workflow/types";
 
+import { DataMappingPanel } from "./data-mapping-panel";
 import { AiActionConfiguration } from "./ai-action-configuration";
 import { HttpActionConfiguration } from "./http-action-configuration";
 import { MessagingActionConfiguration } from "./messaging-action-configuration";
 
 type NodeConfigurationPanelProps = {
   workspaceId: string;
+  nodes: WorkflowCanvasNode[];
+  edges: WorkflowCanvasEdge[];
   node: WorkflowCanvasNode | null;
   canEdit: boolean;
   onUpdate: (
@@ -61,6 +65,8 @@ const actionTypes = [
 
 export function NodeConfigurationPanel({
   workspaceId,
+  nodes,
+  edges,
   node,
   canEdit,
   onUpdate,
@@ -284,6 +290,8 @@ export function NodeConfigurationPanel({
                   )}
                 </select>
               </div>
+
+              <DataMappingPanel key={selectedNode.id} node={selectedNode} nodes={nodes} edges={edges} />
 
               {actionType ===
                 "HTTP_REQUEST" && (

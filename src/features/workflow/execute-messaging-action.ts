@@ -17,6 +17,7 @@ type ExecuteMessagingActionOptions = {
   workflowId: string;
   data: WorkflowNodeData;
   input: Record<string, unknown>;
+  templatesResolved?: boolean;
 };
 
 const REQUEST_TIMEOUT_MS = 15_000;
@@ -120,6 +121,7 @@ export async function executeMessagingAction({
   workflowId,
   data,
   input,
+  templatesResolved = false,
 }: ExecuteMessagingActionOptions): Promise<
   Record<string, unknown>
 > {
@@ -137,10 +139,14 @@ export async function executeMessagingAction({
         configuration.provider,
     });
 
-  const message = buildMessage(
-    configuration.message,
-    input
-  );
+  const message = templatesResolved
+    ? configuration.message
+    : buildMessage(configuration.message, input);
+
+  const limit = configuration.provider === "SLACK" ? 4_000 : 2_000;
+  if (message.length > limit) {
+    throw new MessagingActionError(`Resolved message cannot exceed ${limit} characters.`);
+  }
 
   const body =
     configuration.provider === "SLACK"

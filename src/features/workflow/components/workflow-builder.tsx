@@ -507,13 +507,15 @@ export function WorkflowBuilder({
           </ReactFlow>
         </div>
 
-       <NodeConfigurationPanel
-  workspaceId={workspaceId}
-  node={selectedNode}
-  canEdit={canEdit}
-  onUpdate={updateNode}
-  onDelete={deleteNode}
-/>
+        <NodeConfigurationPanel
+          nodes={nodes}
+          edges={edges}
+          workspaceId={workspaceId}
+          node={selectedNode}
+          canEdit={canEdit}
+          onUpdate={updateNode}
+          onDelete={deleteNode}
+        />
       </div>
     </div>
   );
