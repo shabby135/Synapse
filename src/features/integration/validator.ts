@@ -1,6 +1,14 @@
 import { z } from "zod";
 
+import {
+  integrationProviderValues,
+  type IntegrationProvider,
+} from "./provider-registry";
+
 export const integrationProviderSchema =
+  z.enum(integrationProviderValues);
+
+export const webhookIntegrationProviderSchema =
   z.enum([
     "SLACK",
     "DISCORD",
@@ -38,7 +46,7 @@ export const createIntegrationSchema =
         ),
 
       provider:
-        integrationProviderSchema,
+        webhookIntegrationProviderSchema,
 
       name: z
         .string()
@@ -216,10 +224,7 @@ export const updateIntegrationSchema =
 export const deleteIntegrationSchema =
   integrationIdSchema;
 
-export type IntegrationProvider =
-  z.infer<
-    typeof integrationProviderSchema
-  >;
+export type { IntegrationProvider };
 
 export type ListIntegrationsInput =
   z.infer<

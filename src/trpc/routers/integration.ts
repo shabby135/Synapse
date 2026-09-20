@@ -62,6 +62,14 @@ export const integrationRouter =
                 .provider,
             name:
               workspaceIntegration.name,
+            status:
+              workspaceIntegration.status,
+            lastTestedAt:
+              workspaceIntegration
+                .lastTestedAt,
+            lastError:
+              workspaceIntegration
+                .lastError,
             createdAt:
               workspaceIntegration
                 .createdAt,
@@ -170,6 +178,15 @@ export const integrationRouter =
                   name:
                     workspaceIntegration
                       .name,
+                  status:
+                    workspaceIntegration
+                      .status,
+                  lastTestedAt:
+                    workspaceIntegration
+                      .lastTestedAt,
+                  lastError:
+                    workspaceIntegration
+                      .lastError,
                   createdAt:
                     workspaceIntegration
                       .createdAt,
@@ -335,6 +352,15 @@ export const integrationRouter =
                   name:
                     workspaceIntegration
                       .name,
+                  status:
+                    workspaceIntegration
+                      .status,
+                  lastTestedAt:
+                    workspaceIntegration
+                      .lastTestedAt,
+                  lastError:
+                    workspaceIntegration
+                      .lastError,
                   createdAt:
                     workspaceIntegration
                       .createdAt,

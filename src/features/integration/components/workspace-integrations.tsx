@@ -33,6 +33,9 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
+import type {
+  IntegrationProvider,
+} from "@/features/integration/provider-registry";
 import { hasWorkspacePermission } from "@/features/workspace/permissions";
 import { useTRPC } from "@/trpc/react";
 
@@ -40,7 +43,7 @@ type WorkspaceIntegrationsProps = {
   workspaceId: string;
 };
 
-type IntegrationProvider =
+type WebhookIntegrationProvider =
   | "SLACK"
   | "DISCORD";
 
@@ -69,7 +72,7 @@ export function WorkspaceIntegrations({
   );
 
   const [provider, setProvider] =
-    useState<IntegrationProvider>(
+    useState<WebhookIntegrationProvider>(
       "SLACK"
     );
 
@@ -355,7 +358,7 @@ export function WorkspaceIntegrations({
                 onChange={(event) =>
                   setProvider(
                     event.target
-                      .value as IntegrationProvider
+                      .value as WebhookIntegrationProvider
                   )
                 }
                 className="h-9 w-full rounded-md border bg-background px-3 text-sm outline-none focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/50"

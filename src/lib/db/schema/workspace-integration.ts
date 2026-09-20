@@ -2,6 +2,7 @@ import { relations } from "drizzle-orm";
 import {
   index,
   integer,
+  jsonb,
   pgEnum,
   pgTable,
   text,
@@ -9,14 +10,29 @@ import {
   uniqueIndex,
 } from "drizzle-orm/pg-core";
 
+import {
+  integrationProviderValues,
+} from "@/features/integration/provider-registry";
+
 import { user } from "./auth";
 import { workspace } from "./workspace";
 
 export const integrationProvider =
-  pgEnum("integration_provider", [
-    "SLACK",
-    "DISCORD",
-  ]);
+  pgEnum(
+    "integration_provider",
+    integrationProviderValues
+  );
+
+export const integrationConnectionStatus =
+  pgEnum(
+    "integration_connection_status",
+    [
+      "ACTIVE",
+      "NEEDS_REAUTH",
+      "ERROR",
+      "DISABLED",
+    ]
+  );
 
 export const workspaceIntegration =
   pgTable(
@@ -42,6 +58,13 @@ export const workspaceIntegration =
 
       name: text("name").notNull(),
 
+      status:
+        integrationConnectionStatus(
+          "status"
+        )
+          .default("ACTIVE")
+          .notNull(),
+
       encryptedValue: text(
         "encrypted_value"
       ).notNull(),
@@ -59,6 +82,39 @@ export const workspaceIntegration =
       )
         .default(1)
         .notNull(),
+
+      credentialFormatVersion: integer(
+        "credential_format_version"
+      )
+        .default(1)
+        .notNull(),
+
+      metadata: jsonb("metadata")
+        .$type<Record<string, unknown>>()
+        .default({})
+        .notNull(),
+
+      externalAccountId: text(
+        "external_account_id"
+      ),
+
+      externalAccountName: text(
+        "external_account_name"
+      ),
+
+      expiresAt: timestamp(
+        "expires_at"
+      ),
+
+      lastTestedAt: timestamp(
+        "last_tested_at"
+      ),
+
+      lastError: text("last_error"),
+
+      disabledAt: timestamp(
+        "disabled_at"
+      ),
 
       createdBy: text(
         "created_by"
@@ -97,6 +153,13 @@ export const workspaceIntegration =
       ).on(
         table.workspaceId,
         table.provider
+      ),
+
+      index(
+        "workspace_integration_workspace_status_idx"
+      ).on(
+        table.workspaceId,
+        table.status
       ),
     ]
   );
