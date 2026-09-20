@@ -23,7 +23,6 @@ import {
   validateProviderCredentials,
 } from "./credential-definition";
 import {
-  createIntegrationSchema,
   type IntegrationProvider,
 } from "./validator";
 
@@ -192,22 +191,6 @@ export async function resolveWorkflowWebhookIntegration(
   if (!webhookUrl) {
     throw new WorkflowIntegrationError(
       `The ${options.provider.toLowerCase()} integration does not contain a webhook URL.`
-    );
-  }
-
-  const validation =
-    createIntegrationSchema.safeParse({
-      workspaceId:
-        integration.workspaceId,
-      provider:
-        integration.provider,
-      name: integration.name,
-      webhookUrl,
-    });
-
-  if (!validation.success) {
-    throw new WorkflowIntegrationError(
-      `The stored ${options.provider.toLowerCase()} webhook URL is invalid.`
     );
   }
 

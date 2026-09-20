@@ -163,6 +163,58 @@ function validateHttpsUrl(
   }
 }
 
+function validateWebhookUrl(
+  provider: IntegrationProvider,
+  value: string
+) {
+  if (
+    provider !== "SLACK" &&
+    provider !== "DISCORD"
+  ) {
+    return;
+  }
+
+  const url = new URL(value);
+  const hostname =
+    url.hostname.toLowerCase();
+
+  if (provider === "SLACK") {
+    const validHost = new Set([
+      "hooks.slack.com",
+      "hooks.slack-gov.com",
+    ]).has(hostname);
+    const validPath =
+      /^\/services\/[^/]+\/[^/]+\/[^/]+\/?$/.test(
+        url.pathname
+      );
+
+    if (!validHost || !validPath) {
+      throw new IntegrationCredentialError(
+        "Enter a valid Slack incoming-webhook URL."
+      );
+    }
+  }
+
+  if (provider === "DISCORD") {
+    const validHost = new Set([
+      "discord.com",
+      "discordapp.com",
+      "canary.discord.com",
+      "ptb.discord.com",
+    ]).has(hostname);
+    const validPath =
+      /^\/api(?:\/v\d+)?\/webhooks\/\d+\/[^/]+\/?$/.test(
+        url.pathname
+      );
+
+    if (!validHost || !validPath) {
+      throw new IntegrationCredentialError(
+        "Enter a valid Discord webhook URL."
+      );
+    }
+  }
+}
+
 export function validateProviderCredentials(
   provider: IntegrationProvider,
   credentials: IntegrationCredentials
@@ -208,6 +260,16 @@ export function validateProviderCredentials(
         value,
         definition.label
       );
+
+      if (
+        definition.key ===
+        "webhookUrl"
+      ) {
+        validateWebhookUrl(
+          provider,
+          value
+        );
+      }
     }
   }
 
@@ -220,6 +282,40 @@ export type CredentialPreview = {
   configured: boolean;
   displayValue: string | null;
 };
+
+export function readCredentialPreview(
+  metadata: unknown
+): CredentialPreview[] {
+  if (
+    typeof metadata !== "object" ||
+    metadata === null ||
+    !("credentialPreview" in metadata) ||
+    !Array.isArray(
+      metadata.credentialPreview
+    )
+  ) {
+    return [];
+  }
+
+  return metadata.credentialPreview.filter(
+    (
+      value
+    ): value is CredentialPreview =>
+      typeof value === "object" &&
+      value !== null &&
+      "key" in value &&
+      typeof value.key === "string" &&
+      "label" in value &&
+      typeof value.label === "string" &&
+      "configured" in value &&
+      typeof value.configured ===
+        "boolean" &&
+      "displayValue" in value &&
+      (typeof value.displayValue ===
+        "string" ||
+        value.displayValue === null)
+  );
+}
 
 export function createCredentialPreview(
   provider: IntegrationProvider,
@@ -251,4 +347,3 @@ export function createCredentialPreview(
     };
   });
 }
-

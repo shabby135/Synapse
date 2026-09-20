@@ -1,12 +1,15 @@
 "use client";
 
 import {
+  useMemo,
   useState,
   type FormEvent,
 } from "react";
 import {
+  KeyRound,
   Loader2,
   Plus,
+  RefreshCw,
   Trash2,
 } from "lucide-react";
 import {
@@ -33,8 +36,14 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
-import type {
-  IntegrationProvider,
+import {
+  providerCredentialFields,
+  type CredentialPreview,
+} from "@/features/integration/credential-definition";
+import {
+  getIntegrationProvider,
+  integrationProviderValues,
+  type IntegrationProvider,
 } from "@/features/integration/provider-registry";
 import { hasWorkspacePermission } from "@/features/workspace/permissions";
 import { useTRPC } from "@/trpc/react";
@@ -43,143 +52,364 @@ type WorkspaceIntegrationsProps = {
   workspaceId: string;
 };
 
-type WebhookIntegrationProvider =
-  | "SLACK"
-  | "DISCORD";
+type IntegrationStatus =
+  | "ACTIVE"
+  | "NEEDS_REAUTH"
+  | "ERROR"
+  | "DISABLED";
 
 type IntegrationItem = {
   id: string;
   name: string;
   provider: IntegrationProvider;
+  status: IntegrationStatus;
+  credentialPreview: CredentialPreview[];
+  canTest: boolean;
+  externalAccountName: string | null;
+  lastTestedAt: Date | null;
+  lastError: string | null;
 };
+
+type ConnectionDialogState =
+  | {
+      mode: "CREATE";
+    }
+  | {
+      mode: "RECONNECT";
+      integration: IntegrationItem;
+    }
+  | null;
+
+const activeProviders =
+  integrationProviderValues.filter(
+    (provider) =>
+      getIntegrationProvider(provider)
+        .availability === "ACTIVE"
+  );
+
+const statusLabels: Record<
+  IntegrationStatus,
+  string
+> = {
+  ACTIVE: "Connected",
+  NEEDS_REAUTH: "Reconnect required",
+  ERROR: "Connection error",
+  DISABLED: "Disabled",
+};
+
+const statusClasses: Record<
+  IntegrationStatus,
+  string
+> = {
+  ACTIVE:
+    "bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300",
+  NEEDS_REAUTH:
+    "bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300",
+  ERROR:
+    "bg-destructive/10 text-destructive",
+  DISABLED:
+    "bg-muted text-muted-foreground",
+};
+
+function credentialPlaceholder(
+  provider: IntegrationProvider,
+  key: string
+): string {
+  if (key === "apiKey") {
+    return `Enter your ${
+      getIntegrationProvider(provider)
+        .label
+    } API key`;
+  }
+
+  if (
+    provider === "SLACK" &&
+    key === "webhookUrl"
+  ) {
+    return "https://hooks.slack.com/services/...";
+  }
+
+  if (
+    provider === "DISCORD" &&
+    key === "webhookUrl"
+  ) {
+    return "https://discord.com/api/webhooks/...";
+  }
+
+  return `Enter ${key}`;
+}
 
 export function WorkspaceIntegrations({
   workspaceId,
 }: WorkspaceIntegrationsProps) {
   const trpc = useTRPC();
   const queryClient = useQueryClient();
-
-  const [
-    createDialogOpen,
-    setCreateDialogOpen,
-  ] = useState(false);
-
-  const [
-    deleteIntegration,
-    setDeleteIntegration,
-  ] = useState<IntegrationItem | null>(
-    null
-  );
-
-  const [provider, setProvider] =
-    useState<WebhookIntegrationProvider>(
-      "SLACK"
+  const [dialog, setDialog] =
+    useState<ConnectionDialogState>(null);
+  const [deleteIntegration, setDeleteIntegration] =
+    useState<IntegrationItem | null>(
+      null
     );
-
+  const [provider, setProvider] =
+    useState<IntegrationProvider>(
+      activeProviders[0] ?? "SLACK"
+    );
   const [name, setName] =
     useState("");
-
-  const [webhookUrl, setWebhookUrl] =
-    useState("");
+  const [credentials, setCredentials] =
+    useState<Record<string, string>>(
+      {}
+    );
+  const [oauthRedirecting, setOauthRedirecting] =
+    useState(false);
 
   const workspace = useQuery(
     trpc.workspace.getById.queryOptions({
       id: workspaceId,
     })
   );
-
   const canRead =
     workspace.isSuccess &&
     hasWorkspacePermission(
       workspace.data.role,
       "integration:read"
     );
-
   const canManage =
     workspace.isSuccess &&
     hasWorkspacePermission(
       workspace.data.role,
       "integration:manage"
     );
-
   const integrationOptions =
     trpc.integration.list.queryOptions({
       workspaceId,
     });
-
   const integrations = useQuery({
     ...integrationOptions,
     enabled: canRead,
   });
 
+  const credentialFields = useMemo(
+    () => {
+      if (
+        getIntegrationProvider(provider)
+          .authStrategy === "OAUTH2"
+      ) {
+        return [];
+      }
+
+      return providerCredentialFields[
+        provider
+      ];
+    },
+    [provider]
+  );
+  const usesOAuth =
+    getIntegrationProvider(provider)
+      .authStrategy === "OAUTH2";
+
+  async function refreshIntegrations() {
+    await queryClient.invalidateQueries(
+      trpc.integration.list.queryFilter({
+        workspaceId,
+      })
+    );
+  }
+
+  function closeConnectionDialog() {
+    setDialog(null);
+    setName("");
+    setCredentials({});
+    setProvider(
+      activeProviders[0] ?? "SLACK"
+    );
+  }
+
   const createIntegration = useMutation(
     trpc.integration.create.mutationOptions(
       {
         onSuccess: async () => {
-          await queryClient.invalidateQueries(
-            trpc.integration.list.queryFilter(
-              {
-                workspaceId,
-              }
-            )
-          );
-
+          await refreshIntegrations();
           toast.success(
-            "Integration created."
+            "Connection tested and saved."
           );
-
-          setCreateDialogOpen(false);
-          setProvider("SLACK");
-          setName("");
-          setWebhookUrl("");
+          closeConnectionDialog();
         },
       }
     )
   );
+  const reconnectIntegration =
+    useMutation(
+      trpc.integration.reconnect.mutationOptions(
+        {
+          onSuccess: async () => {
+            await refreshIntegrations();
+            toast.success(
+              "Connection updated successfully."
+            );
+            closeConnectionDialog();
+          },
+        }
+      )
+    );
+  const testConnection = useMutation(
+    trpc.integration.test.mutationOptions(
+      {
+        onSuccess: async (result) => {
+          await refreshIntegrations();
 
+          if (
+            result.status ===
+            "CONNECTED"
+          ) {
+            toast.success(
+              "Connection test succeeded."
+            );
+          } else {
+            toast.error(
+              result.message ??
+                "Connection test failed."
+            );
+          }
+        },
+      }
+    )
+  );
   const removeIntegration = useMutation(
     trpc.integration.delete.mutationOptions(
       {
         onSuccess: async () => {
-          await queryClient.invalidateQueries(
-            trpc.integration.list.queryFilter(
-              {
-                workspaceId,
-              }
-            )
-          );
-
+          await refreshIntegrations();
           toast.success(
-            "Integration deleted."
+            "Connection deleted."
           );
-
           setDeleteIntegration(null);
         },
       }
     )
   );
 
-  function handleCreate(
+  const connectionPending =
+    createIntegration.isPending ||
+    reconnectIntegration.isPending ||
+    oauthRedirecting;
+  const connectionError =
+    createIntegration.error ??
+    reconnectIntegration.error;
+
+  function openCreateDialog() {
+    createIntegration.reset();
+    reconnectIntegration.reset();
+    setProvider(
+      activeProviders[0] ?? "SLACK"
+    );
+    setName("");
+    setCredentials({});
+    setDialog({ mode: "CREATE" });
+  }
+
+  function openReconnectDialog(
+    integration: IntegrationItem
+  ) {
+    createIntegration.reset();
+    reconnectIntegration.reset();
+    setProvider(integration.provider);
+    setName(integration.name);
+    setCredentials({});
+    setDialog({
+      mode: "RECONNECT",
+      integration,
+    });
+  }
+
+  function handleConnectionSubmit(
     event: FormEvent<HTMLFormElement>
   ) {
     event.preventDefault();
 
-    createIntegration.mutate({
-      workspaceId,
-      provider,
-      name: name.trim(),
-      webhookUrl:
-        webhookUrl.trim(),
-    });
+    if (usesOAuth) {
+      const connectionName =
+        dialog?.mode === "RECONNECT"
+          ? dialog.integration.name
+          : name.trim();
+
+      if (
+        connectionName.length < 2 ||
+        connectionName.length > 50
+      ) {
+        return;
+      }
+
+      const url = new URL(
+        "/api/integrations/oauth/start",
+        window.location.origin
+      );
+      url.searchParams.set(
+        "workspaceId",
+        workspaceId
+      );
+      url.searchParams.set(
+        "provider",
+        provider
+      );
+      url.searchParams.set(
+        "name",
+        connectionName
+      );
+
+      if (
+        dialog?.mode === "RECONNECT"
+      ) {
+        url.searchParams.set(
+          "integrationId",
+          dialog.integration.id
+        );
+      }
+
+      setOauthRedirecting(true);
+      window.location.assign(
+        url.toString()
+      );
+      return;
+    }
+
+    const submittedCredentials =
+      Object.fromEntries(
+        Object.entries(credentials)
+          .map(([key, value]) => [
+            key,
+            value.trim(),
+          ])
+          .filter(([, value]) => value)
+      );
+
+    if (dialog?.mode === "CREATE") {
+      createIntegration.mutate({
+        workspaceId,
+        provider,
+        name: name.trim(),
+        credentials:
+          submittedCredentials,
+      });
+    }
+
+    if (
+      dialog?.mode === "RECONNECT"
+    ) {
+      reconnectIntegration.mutate({
+        id: dialog.integration.id,
+        credentials:
+          submittedCredentials,
+      });
+    }
   }
 
   if (
     workspace.isPending ||
-    (canRead &&
-      integrations.isPending)
+    (canRead && integrations.isPending)
   ) {
     return (
-      <Card>
+      <Card id="connections">
         <CardContent className="flex min-h-40 items-center justify-center">
           <Loader2 className="size-5 animate-spin text-muted-foreground" />
         </CardContent>
@@ -199,9 +429,8 @@ export function WorkspaceIntegrations({
       <Card>
         <CardContent className="pt-6">
           <p className="font-medium text-destructive">
-            Unable to load integrations
+            Unable to load connections
           </p>
-
           <p className="mt-1 text-sm text-destructive">
             {error?.message}
           </p>
@@ -221,12 +450,11 @@ export function WorkspaceIntegrations({
           <div className="flex items-start justify-between gap-4">
             <div>
               <CardTitle>
-                Integrations
+                Connections
               </CardTitle>
-
               <CardDescription className="mt-1">
-                Secure webhook credentials
-                available to workflows in
+                Connect, test and manage
+                encrypted credentials for
                 this workspace.
               </CardDescription>
             </div>
@@ -234,15 +462,10 @@ export function WorkspaceIntegrations({
             {canManage && (
               <Button
                 type="button"
-                onClick={() => {
-                  createIntegration.reset();
-                  setCreateDialogOpen(
-                    true
-                  );
-                }}
+                onClick={openCreateDialog}
               >
                 <Plus className="size-4" />
-                Add integration
+                Add connection
               </Button>
             )}
           </div>
@@ -252,61 +475,138 @@ export function WorkspaceIntegrations({
           {integrations.data?.length ? (
             <div className="space-y-3">
               {integrations.data.map(
-                (integration) => (
-                  <div
-                    key={integration.id}
-                    className="flex items-center justify-between gap-4 rounded-lg border p-4"
-                  >
-                    <div>
-                      <div className="flex items-center gap-2">
-                        <p className="font-medium">
-                          {
-                            integration.name
-                          }
-                        </p>
+                (integration) => {
+                  const definition =
+                    getIntegrationProvider(
+                      integration.provider
+                    );
 
-                        <span className="rounded-full bg-muted px-2 py-1 text-xs font-medium">
-                          {
-                            integration.provider
-                          }
-                        </span>
+                  return (
+                    <div
+                      key={integration.id}
+                      className="rounded-lg border p-4"
+                    >
+                      <div className="flex flex-wrap items-start justify-between gap-4">
+                        <div>
+                          <div className="flex flex-wrap items-center gap-2">
+                            <p className="font-medium">
+                              {
+                                integration.name
+                              }
+                            </p>
+                            <span className="rounded-full bg-muted px-2 py-1 text-xs font-medium">
+                              {
+                                definition.label
+                              }
+                            </span>
+                            <span
+                              className={`rounded-full px-2 py-1 text-xs font-medium ${statusClasses[integration.status]}`}
+                            >
+                              {
+                                statusLabels[
+                                  integration
+                                    .status
+                                ]
+                              }
+                            </span>
+                          </div>
+
+                          {integration
+                            .credentialPreview
+                            .length > 0 && (
+                            <p className="mt-2 text-sm text-muted-foreground">
+                              {integration.credentialPreview
+                                .filter(
+                                  (field) =>
+                                    field.configured
+                                )
+                                .map(
+                                  (field) =>
+                                    `${field.label}: ${field.displayValue}`
+                                )
+                                .join(" · ")}
+                            </p>
+                          )}
+
+                          {integration.lastError && (
+                            <p className="mt-2 text-sm text-destructive">
+                              {
+                                integration.lastError
+                              }
+                            </p>
+                          )}
+
+                          {integration.externalAccountName && (
+                            <p className="mt-2 text-sm text-muted-foreground">
+                              Account: {integration.externalAccountName}
+                            </p>
+                          )}
+                        </div>
+
+                        {canManage && (
+                          <div className="flex items-center gap-2">
+                            {integration.canTest && (
+                              <Button
+                                type="button"
+                                variant="outline"
+                                size="sm"
+                                disabled={
+                                  testConnection.isPending
+                                }
+                                onClick={() =>
+                                  testConnection.mutate(
+                                    {
+                                      id: integration.id,
+                                    }
+                                  )
+                                }
+                              >
+                                <RefreshCw className="size-4" />
+                                Test
+                              </Button>
+                            )}
+                            <Button
+                              type="button"
+                              variant="outline"
+                              size="sm"
+                              onClick={() =>
+                                openReconnectDialog(
+                                  integration
+                                )
+                              }
+                            >
+                              <KeyRound className="size-4" />
+                              Reconnect
+                            </Button>
+                            <Button
+                              type="button"
+                              variant="destructive"
+                              size="icon"
+                              aria-label={`Delete ${integration.name}`}
+                              onClick={() =>
+                                setDeleteIntegration(
+                                  integration
+                                )
+                              }
+                            >
+                              <Trash2 className="size-4" />
+                            </Button>
+                          </div>
+                        )}
                       </div>
-
-                      <p className="mt-1 text-sm text-muted-foreground">
-                        Credential encrypted
-                        and stored securely.
-                      </p>
                     </div>
-
-                    {canManage && (
-                      <Button
-                        type="button"
-                        variant="destructive"
-                        size="icon"
-                        aria-label={`Delete ${integration.name}`}
-                        onClick={() =>
-                          setDeleteIntegration(
-                            integration
-                          )
-                        }
-                      >
-                        <Trash2 className="size-4" />
-                      </Button>
-                    )}
-                  </div>
-                )
+                  );
+                }
               )}
             </div>
           ) : (
             <div className="rounded-lg border border-dashed p-8 text-center">
               <p className="font-medium">
-                No integrations
+                No connections
               </p>
-
               <p className="mt-1 text-sm text-muted-foreground">
-                Add a Slack or Discord
-                webhook to use messaging
-                actions.
+                Add a provider connection to
+                use it in workflows.
               </p>
             </div>
           )}
@@ -314,30 +614,28 @@ export function WorkspaceIntegrations({
       </Card>
 
       <Dialog
-        open={createDialogOpen}
+        open={dialog !== null}
         onOpenChange={(open) => {
-          if (
-            !createIntegration.isPending
-          ) {
-            setCreateDialogOpen(open);
+          if (!open && !connectionPending) {
+            closeConnectionDialog();
           }
         }}
       >
         <DialogContent>
           <form
-            onSubmit={handleCreate}
+            onSubmit={handleConnectionSubmit}
             className="space-y-5"
           >
             <DialogHeader>
               <DialogTitle>
-                Add integration
+                {dialog?.mode === "RECONNECT"
+                  ? "Reconnect provider"
+                  : "Add connection"}
               </DialogTitle>
-
               <DialogDescription>
-                The webhook URL will be
-                encrypted before it is stored
-                and will not be displayed
-                again.
+                {usesOAuth
+                  ? "You will continue to the provider to authorize Synapse. OAuth tokens are encrypted before storage."
+                  : "Credentials are tested before being encrypted and saved. A test message will be sent to webhook-based providers."}
               </DialogDescription>
             </DialogHeader>
 
@@ -348,98 +646,123 @@ export function WorkspaceIntegrations({
               >
                 Provider
               </label>
-
               <select
                 id="integration-provider"
                 value={provider}
                 disabled={
-                  createIntegration.isPending
+                  connectionPending ||
+                  dialog?.mode ===
+                    "RECONNECT"
                 }
-                onChange={(event) =>
+                onChange={(event) => {
                   setProvider(
                     event.target
-                      .value as WebhookIntegrationProvider
-                  )
-                }
-                className="h-9 w-full rounded-md border bg-background px-3 text-sm outline-none focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/50"
+                      .value as IntegrationProvider
+                  );
+                  setCredentials({});
+                }}
+                className="h-9 w-full rounded-md border bg-background px-3 text-sm outline-none focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/50 disabled:cursor-not-allowed disabled:opacity-50"
               >
-                <option value="SLACK">
-                  Slack
-                </option>
-
-                <option value="DISCORD">
-                  Discord
-                </option>
+                {activeProviders.map(
+                  (availableProvider) => (
+                    <option
+                      key={availableProvider}
+                      value={availableProvider}
+                    >
+                      {
+                        getIntegrationProvider(
+                          availableProvider
+                        ).label
+                      }
+                    </option>
+                  )
+                )}
               </select>
             </div>
 
-            <div className="space-y-2">
-              <label
-                htmlFor="integration-name"
-                className="text-sm font-medium"
-              >
-                Name
-              </label>
+            {dialog?.mode === "CREATE" && (
+              <div className="space-y-2">
+                <label
+                  htmlFor="integration-name"
+                  className="text-sm font-medium"
+                >
+                  Name
+                </label>
+                <Input
+                  id="integration-name"
+                  value={name}
+                  required
+                  minLength={2}
+                  maxLength={50}
+                  placeholder="Team notifications"
+                  disabled={connectionPending}
+                  onChange={(event) =>
+                    setName(
+                      event.target.value
+                    )
+                  }
+                />
+              </div>
+            )}
 
-              <Input
-                id="integration-name"
-                value={name}
-                required
-                minLength={2}
-                maxLength={50}
-                placeholder="Team notifications"
-                disabled={
-                  createIntegration.isPending
-                }
-                onChange={(event) =>
-                  setName(
-                    event.target.value
-                  )
-                }
-              />
-            </div>
+            {credentialFields.map(
+              (field) => (
+                <div
+                  key={field.key}
+                  className="space-y-2"
+                >
+                  <label
+                    htmlFor={`credential-${field.key}`}
+                    className="text-sm font-medium"
+                  >
+                    {field.label}
+                  </label>
+                  <Input
+                    id={`credential-${field.key}`}
+                    type={
+                      field.secret
+                        ? "password"
+                        : "text"
+                    }
+                    value={
+                      credentials[
+                        field.key
+                      ] ?? ""
+                    }
+                    required={field.required}
+                    autoComplete="off"
+                    placeholder={credentialPlaceholder(
+                      provider,
+                      field.key
+                    )}
+                    disabled={connectionPending}
+                    onChange={(event) =>
+                      setCredentials(
+                        (current) => ({
+                          ...current,
+                          [field.key]:
+                            event.target
+                              .value,
+                        })
+                      )
+                    }
+                  />
+                </div>
+              )
+            )}
 
-            <div className="space-y-2">
-              <label
-                htmlFor="integration-webhook-url"
-                className="text-sm font-medium"
-              >
-                Webhook URL
-              </label>
-
-              <Input
-                id="integration-webhook-url"
-                type="password"
-                value={webhookUrl}
-                required
-                autoComplete="off"
-                placeholder={
-                  provider === "SLACK"
-                    ? "https://hooks.slack.com/services/..."
-                    : "https://discord.com/api/webhooks/..."
-                }
-                disabled={
-                  createIntegration.isPending
-                }
-                onChange={(event) =>
-                  setWebhookUrl(
-                    event.target.value
-                  )
-                }
-              />
-
-              <p className="text-xs text-muted-foreground">
-                This value cannot be viewed
-                after saving.
+            {usesOAuth && (
+              <p className="rounded-md border bg-muted/40 p-3 text-sm text-muted-foreground">
+                Synapse never asks you to paste
+                an OAuth access token. Sign in
+                directly on the provider&apos;s
+                authorization page.
               </p>
-            </div>
+            )}
 
-            {createIntegration.error && (
+            {connectionError && (
               <p className="text-sm font-medium text-destructive">
-                {
-                  createIntegration.error
-                    .message
-                }
+                {connectionError.message}
               </p>
             )}
 
@@ -447,29 +770,25 @@ export function WorkspaceIntegrations({
               <Button
                 type="button"
                 variant="outline"
-                disabled={
-                  createIntegration.isPending
-                }
-                onClick={() =>
-                  setCreateDialogOpen(
-                    false
-                  )
-                }
+                disabled={connectionPending}
+                onClick={closeConnectionDialog}
               >
                 Cancel
               </Button>
-
               <Button
                 type="submit"
-                disabled={
-                  createIntegration.isPending
-                }
+                disabled={connectionPending}
               >
-                {createIntegration.isPending && (
+                {connectionPending && (
                   <Loader2 className="size-4 animate-spin" />
                 )}
-
-                Save integration
+                {usesOAuth
+                  ? `Continue to ${
+                      getIntegrationProvider(
+                        provider
+                      ).label
+                    }`
+                  : "Test and save"}
               </Button>
             </DialogFooter>
           </form>
@@ -477,9 +796,7 @@ export function WorkspaceIntegrations({
       </Dialog>
 
       <Dialog
-        open={
-          deleteIntegration !== null
-        }
+        open={deleteIntegration !== null}
         onOpenChange={(open) => {
           if (
             !open &&
@@ -492,11 +809,10 @@ export function WorkspaceIntegrations({
         <DialogContent>
           <DialogHeader>
             <DialogTitle>
-              Delete integration?
+              Delete connection?
             </DialogTitle>
-
             <DialogDescription>
-              Workflows using this integration
+              Workflows using this connection
               will fail until another
               credential is selected.
             </DialogDescription>
@@ -524,18 +840,17 @@ export function WorkspaceIntegrations({
             >
               Cancel
             </Button>
-
             <Button
               type="button"
               variant="destructive"
               disabled={
+                !deleteIntegration ||
                 removeIntegration.isPending
               }
               onClick={() => {
                 if (deleteIntegration) {
                   removeIntegration.mutate({
-                    id:
-                      deleteIntegration.id,
+                    id: deleteIntegration.id,
                   });
                 }
               }}
@@ -543,8 +858,7 @@ export function WorkspaceIntegrations({
               {removeIntegration.isPending && (
                 <Loader2 className="size-4 animate-spin" />
               )}
-
-              Delete integration
+              Delete
             </Button>
           </DialogFooter>
         </DialogContent>
