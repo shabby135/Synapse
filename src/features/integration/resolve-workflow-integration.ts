@@ -15,8 +15,13 @@ import {
 
 import {
   createIntegrationSecretContext,
-  decryptIntegrationSecret,
 } from "./encryption";
+import {
+  decryptIntegrationCredentials,
+} from "./credential-store";
+import {
+  validateProviderCredentials,
+} from "./credential-definition";
 import {
   createIntegrationSchema,
   type IntegrationProvider,
@@ -33,8 +38,15 @@ export type ResolvedWorkflowIntegration = {
   workspaceId: string;
   provider: IntegrationProvider;
   name: string;
-  webhookUrl: string;
+  credentials: Readonly<
+    Record<string, string>
+  >;
 };
+
+export type ResolvedWebhookWorkflowIntegration =
+  ResolvedWorkflowIntegration & {
+  webhookUrl: string;
+  };
 
 export class WorkflowIntegrationError
   extends Error {
@@ -68,6 +80,11 @@ export async function resolveWorkflowIntegration({
           .authenticationTag,
       keyVersion:
         workspaceIntegration.keyVersion,
+      credentialFormatVersion:
+        workspaceIntegration
+          .credentialFormatVersion,
+      status:
+        workspaceIntegration.status,
     })
     .from(workspaceIntegration)
     .innerJoin(
@@ -100,6 +117,14 @@ export async function resolveWorkflowIntegration({
     );
   }
 
+  if (
+    integration.status !== "ACTIVE"
+  ) {
+    throw new WorkflowIntegrationError(
+      `The selected ${provider.toLowerCase()} integration is not active.`
+    );
+  }
+
   const context =
     createIntegrationSecretContext({
       workspaceId:
@@ -110,25 +135,63 @@ export async function resolveWorkflowIntegration({
         integration.id,
     });
 
-  let webhookUrl: string;
+  let credentials: Readonly<
+    Record<string, string>
+  >;
 
   try {
-    webhookUrl =
-      decryptIntegrationSecret({
-        encryptedValue:
-          integration.encryptedValue,
-        initializationVector:
-          integration
-            .initializationVector,
-        authenticationTag:
-          integration.authenticationTag,
-        keyVersion:
-          integration.keyVersion,
-        context,
-      });
+    credentials =
+      validateProviderCredentials(
+        integration.provider,
+        decryptIntegrationCredentials({
+          provider:
+            integration.provider,
+          credentialFormatVersion:
+            integration
+              .credentialFormatVersion,
+          encryptedValue:
+            integration.encryptedValue,
+          initializationVector:
+            integration
+              .initializationVector,
+          authenticationTag:
+            integration.authenticationTag,
+          keyVersion:
+            integration.keyVersion,
+          context,
+        })
+      );
   } catch {
     throw new WorkflowIntegrationError(
       `The ${provider.toLowerCase()} integration credential could not be decrypted.`
+    );
+  }
+
+  return {
+    id: integration.id,
+    workspaceId:
+      integration.workspaceId,
+    provider:
+      integration.provider,
+    name: integration.name,
+    credentials,
+  };
+}
+
+export async function resolveWorkflowWebhookIntegration(
+  options: ResolveWorkflowIntegrationOptions
+): Promise<ResolvedWebhookWorkflowIntegration> {
+  const integration =
+    await resolveWorkflowIntegration(
+      options
+    );
+
+  const webhookUrl =
+    integration.credentials.webhookUrl;
+
+  if (!webhookUrl) {
+    throw new WorkflowIntegrationError(
+      `The ${options.provider.toLowerCase()} integration does not contain a webhook URL.`
     );
   }
 
@@ -144,17 +207,12 @@ export async function resolveWorkflowIntegration({
 
   if (!validation.success) {
     throw new WorkflowIntegrationError(
-      `The stored ${provider.toLowerCase()} webhook URL is invalid.`
+      `The stored ${options.provider.toLowerCase()} webhook URL is invalid.`
     );
   }
 
   return {
-    id: integration.id,
-    workspaceId:
-      integration.workspaceId,
-    provider:
-      integration.provider,
-    name: integration.name,
+    ...integration,
     webhookUrl,
   };
 }

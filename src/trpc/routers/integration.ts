@@ -7,8 +7,10 @@ import {
 
 import {
   createIntegrationSecretContext,
-  encryptIntegrationSecret,
 } from "@/features/integration/encryption";
+import {
+  encryptIntegrationCredentials,
+} from "@/features/integration/credential-store";
 import {
   createIntegrationSchema,
   deleteIntegrationSchema,
@@ -135,8 +137,11 @@ export const integrationRouter =
             });
 
           const encrypted =
-            encryptIntegrationSecret({
-              value: input.webhookUrl,
+            encryptIntegrationCredentials({
+              credentials: {
+                webhookUrl:
+                  input.webhookUrl,
+              },
               context,
             });
 
@@ -163,6 +168,9 @@ export const integrationRouter =
                       .authenticationTag,
                   keyVersion:
                     encrypted.keyVersion,
+                  credentialFormatVersion:
+                    encrypted
+                      .credentialFormatVersion,
                   createdBy:
                     ctx.session.user.id,
                 })
@@ -307,10 +315,12 @@ export const integrationRouter =
               });
 
             const encrypted =
-              encryptIntegrationSecret({
-                value:
-                  validated.data
-                    .webhookUrl,
+              encryptIntegrationCredentials({
+                credentials: {
+                  webhookUrl:
+                    validated.data
+                      .webhookUrl,
+                },
                 context,
               });
 
@@ -325,6 +335,12 @@ export const integrationRouter =
 
             changes.keyVersion =
               encrypted.keyVersion;
+
+            changes.credentialFormatVersion =
+              encrypted.credentialFormatVersion;
+
+            changes.status = "ACTIVE";
+            changes.lastError = null;
           }
 
           try {

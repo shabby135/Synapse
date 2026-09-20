@@ -1,7 +1,7 @@
 import "server-only";
 
 import {
-  resolveWorkflowIntegration,
+  resolveWorkflowWebhookIntegration,
   WorkflowIntegrationError,
 } from "@/features/integration/resolve-workflow-integration";
 
@@ -131,7 +131,7 @@ export async function executeMessagingAction({
     );
 
   const integration =
-    await resolveWorkflowIntegration({
+    await resolveWorkflowWebhookIntegration({
       workflowId,
       integrationId:
         configuration.integrationId,
