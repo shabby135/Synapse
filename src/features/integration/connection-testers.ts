@@ -1,6 +1,12 @@
 import "server-only";
 
 import {
+  apiKeyProviderValues,
+  classifyApiKeyTestStatus,
+  createApiKeyTestRequest,
+  type ApiKeyProvider,
+} from "./api-key-provider";
+import {
   defineConnectionTester,
   type ConnectionTestResult,
   type IntegrationConnectionTester,
@@ -16,6 +22,73 @@ import type {
 } from "./provider-registry";
 
 const TEST_TIMEOUT_MS = 15_000;
+
+function apiKeyTester(
+  provider: ApiKeyProvider
+): IntegrationConnectionTester {
+  return defineConnectionTester(
+    provider,
+    async ({
+      credentials,
+      signal,
+    }) => {
+      const apiKey = credentials.apiKey;
+
+      if (!apiKey) {
+        return {
+          status:
+            "INVALID_CREDENTIALS",
+          message: "API key is missing.",
+        };
+      }
+
+      const request =
+        createApiKeyTestRequest({
+          provider,
+          apiKey,
+          signal,
+        });
+      let response: Response;
+
+      try {
+        response = await fetch(
+          request.url,
+          request.init
+        );
+      } catch (error) {
+        if (
+          error instanceof Error &&
+          (error.name ===
+            "AbortError" ||
+            error.name ===
+              "TimeoutError")
+        ) {
+          return {
+            status:
+              "PROVIDER_UNAVAILABLE",
+            message:
+              "Connection test timed out.",
+          };
+        }
+
+        return {
+          status:
+            "PROVIDER_UNAVAILABLE",
+          message:
+            "The provider could not be reached.",
+        };
+      }
+
+      await response.body
+        ?.cancel()
+        .catch(() => undefined);
+
+      return classifyApiKeyTestStatus(
+        response.status
+      );
+    }
+  );
+}
 
 function webhookTester(
   provider: "SLACK" | "DISCORD"
@@ -127,9 +200,17 @@ function webhookTester(
 }
 
 const testers = {
+  ...Object.fromEntries(
+    apiKeyProviderValues.map(
+      (provider) => [
+        provider,
+        apiKeyTester(provider),
+      ]
+    )
+  ),
   SLACK: webhookTester("SLACK"),
   DISCORD: webhookTester("DISCORD"),
-} satisfies Partial<
+} as Partial<
   Record<
     IntegrationProvider,
     IntegrationConnectionTester
@@ -149,17 +230,15 @@ export async function testIntegrationConnection({
   provider: IntegrationProvider;
   credentials: IntegrationCredentials;
 }): Promise<ConnectionTestResult> {
-  const tester =
-    testers[
-      provider as keyof typeof testers
-    ] as
-      | IntegrationConnectionTester
-      | undefined;
+  const tester = testers[
+    provider as keyof typeof testers
+  ] as
+    | IntegrationConnectionTester
+    | undefined;
 
   if (!tester) {
     return {
-      status:
-        "PROVIDER_UNAVAILABLE",
+      status: "PROVIDER_UNAVAILABLE",
       message:
         "Connection testing is not implemented for this provider yet.",
     };
