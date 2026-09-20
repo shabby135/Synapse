@@ -55,6 +55,57 @@ test("keeps existing webhook providers active", () => {
   }
 });
 
+test("activates the six AI API-key providers", () => {
+  for (const provider of [
+    "OPENAI",
+    "ANTHROPIC",
+    "GEMINI",
+    "GROQ",
+    "DEEPSEEK",
+    "OPENROUTER",
+  ]) {
+    const definition =
+      getIntegrationProvider(provider);
+
+    assert.equal(
+      definition.authStrategy,
+      "API_KEY"
+    );
+    assert.equal(
+      definition.availability,
+      "ACTIVE"
+    );
+    assert.equal(
+      providerSupportsCapability(
+        provider,
+        "AI_GENERATE"
+      ),
+      true
+    );
+  }
+});
+
+test("activates the four OAuth providers", () => {
+  for (const provider of [
+    "GMAIL",
+    "GOOGLE_SHEETS",
+    "GOOGLE_CALENDAR",
+    "GITHUB",
+  ]) {
+    const definition =
+      getIntegrationProvider(provider);
+
+    assert.equal(
+      definition.authStrategy,
+      "OAUTH2"
+    );
+    assert.equal(
+      definition.availability,
+      "ACTIVE"
+    );
+  }
+});
+
 test("describes the shared provider capabilities used by future nodes", () => {
   assert.equal(
     providerSupportsCapability(

@@ -82,7 +82,7 @@ export const integrationProviderRegistry = {
     category: "AI",
     authStrategy: "API_KEY",
     capabilities: aiCapabilities,
-    availability: "PLANNED",
+    availability: "ACTIVE",
   },
   ANTHROPIC: {
     provider: "ANTHROPIC",
@@ -90,7 +90,7 @@ export const integrationProviderRegistry = {
     category: "AI",
     authStrategy: "API_KEY",
     capabilities: aiCapabilities,
-    availability: "PLANNED",
+    availability: "ACTIVE",
   },
   GEMINI: {
     provider: "GEMINI",
@@ -98,7 +98,7 @@ export const integrationProviderRegistry = {
     category: "AI",
     authStrategy: "API_KEY",
     capabilities: aiCapabilities,
-    availability: "PLANNED",
+    availability: "ACTIVE",
   },
   GROQ: {
     provider: "GROQ",
@@ -106,7 +106,7 @@ export const integrationProviderRegistry = {
     category: "AI",
     authStrategy: "API_KEY",
     capabilities: aiCapabilities,
-    availability: "PLANNED",
+    availability: "ACTIVE",
   },
   DEEPSEEK: {
     provider: "DEEPSEEK",
@@ -114,7 +114,7 @@ export const integrationProviderRegistry = {
     category: "AI",
     authStrategy: "API_KEY",
     capabilities: aiCapabilities,
-    availability: "PLANNED",
+    availability: "ACTIVE",
   },
   OPENROUTER: {
     provider: "OPENROUTER",
@@ -122,7 +122,7 @@ export const integrationProviderRegistry = {
     category: "AI",
     authStrategy: "API_KEY",
     capabilities: aiCapabilities,
-    availability: "PLANNED",
+    availability: "ACTIVE",
   },
   SLACK: {
     provider: "SLACK",
@@ -175,7 +175,7 @@ export const integrationProviderRegistry = {
       "EMAIL_TRIGGER",
       "SEND_EMAIL",
     ],
-    availability: "PLANNED",
+    availability: "ACTIVE",
   },
   GOOGLE_SHEETS: {
     provider: "GOOGLE_SHEETS",
@@ -186,7 +186,7 @@ export const integrationProviderRegistry = {
       "ROW_TRIGGER",
       "APPEND_ROW",
     ],
-    availability: "PLANNED",
+    availability: "ACTIVE",
   },
   GOOGLE_CALENDAR: {
     provider: "GOOGLE_CALENDAR",
@@ -197,7 +197,7 @@ export const integrationProviderRegistry = {
       "EVENT_TRIGGER",
       "CREATE_EVENT",
     ],
-    availability: "PLANNED",
+    availability: "ACTIVE",
   },
   AIRTABLE: {
     provider: "AIRTABLE",
@@ -219,7 +219,7 @@ export const integrationProviderRegistry = {
       "ISSUE_TRIGGER",
       "CREATE_ISSUE",
     ],
-    availability: "PLANNED",
+    availability: "ACTIVE",
   },
   STRIPE: {
     provider: "STRIPE",
