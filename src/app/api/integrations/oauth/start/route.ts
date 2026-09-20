@@ -1,10 +1,15 @@
 import {
+  and,
+  eq,
   lt,
 } from "drizzle-orm";
 import {
   NextResponse,
 } from "next/server";
 
+import {
+  encryptIntegrationSecret,
+} from "@/features/integration/encryption";
 import {
   createOAuthAuthorizationUrl,
   createOAuthState,
@@ -18,25 +23,21 @@ import {
   getOAuthRedirectUri,
 } from "@/features/integration/oauth-service";
 import {
-  encryptIntegrationSecret,
-} from "@/features/integration/encryption";
-import { requireWorkspacePermission } from "@/features/workspace/authorization";
+  requireWorkspacePermission,
+} from "@/features/workspace/authorization";
 import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
 import {
   integrationOAuthState,
   workspaceIntegration,
 } from "@/lib/db/schema";
-import {
-  and,
-  eq,
-} from "drizzle-orm";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 const STATE_LIFETIME_MS =
   10 * 60 * 1_000;
+
 const UUID_PATTERN =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
@@ -55,9 +56,62 @@ function errorResponse(
   );
 }
 
+function isTrustedNavigation(
+  request: Request
+): boolean {
+  const fetchSite =
+    request.headers.get(
+      "sec-fetch-site"
+    );
+
+  /*
+   * Browsers send "same-origin" when the
+   * request begins inside Synapse and "none"
+   * for direct user navigation.
+   *
+   * Requests without this header remain
+   * supported for tests and non-browser
+   * clients. Authentication and workspace
+   * authorization are still required.
+   */
+  return (
+    fetchSite === null ||
+    fetchSite === "same-origin" ||
+    fetchSite === "none"
+  );
+}
+
+function authorizationRedirect(
+  authorizationUrl: string
+) {
+  const response =
+    NextResponse.redirect(
+      authorizationUrl,
+      302
+    );
+
+  response.headers.set(
+    "Cache-Control",
+    "no-store"
+  );
+  response.headers.set(
+    "Referrer-Policy",
+    "no-referrer"
+  );
+
+  return response;
+}
+
 export async function GET(
   request: Request
 ) {
+  if (!isTrustedNavigation(request)) {
+    return errorResponse(
+      "Cross-site OAuth initiation is not allowed.",
+      403
+    );
+  }
+
   const session =
     await auth.api.getSession({
       headers: request.headers,
@@ -71,18 +125,22 @@ export async function GET(
   }
 
   const url = new URL(request.url);
+
   const workspaceId =
     url.searchParams.get(
       "workspaceId"
     ) ?? "";
+
   const providerValue =
     url.searchParams.get(
       "provider"
     ) ?? "";
+
   const requestedName =
     url.searchParams
       .get("name")
       ?.trim() ?? "";
+
   const integrationId =
     url.searchParams.get(
       "integrationId"
@@ -171,12 +229,20 @@ export async function GET(
   }
 
   try {
-    const state = createOAuthState();
-    const stateId = crypto.randomUUID();
-    const { verifier, challenge } =
-      createPkcePair();
+    const now = new Date();
+    const state =
+      createOAuthState();
+    const stateId =
+      crypto.randomUUID();
+
+    const {
+      verifier,
+      challenge,
+    } = createPkcePair();
+
     const redirectUri =
       getOAuthRedirectUri(provider);
+
     const encrypted =
       encryptIntegrationSecret({
         value: verifier,
@@ -188,13 +254,17 @@ export async function GET(
           }),
       });
 
+    /*
+     * Remove expired OAuth attempts before
+     * storing the new single-use state.
+     */
     await db
       .delete(integrationOAuthState)
       .where(
         lt(
           integrationOAuthState
             .expiresAt,
-          new Date()
+          now
         )
       );
 
@@ -220,13 +290,14 @@ export async function GET(
         keyVersion:
           encrypted.keyVersion,
         expiresAt: new Date(
-          Date.now() +
+          now.getTime() +
             STATE_LIFETIME_MS
         ),
       });
 
     const { clientId } =
       getOAuthClientConfig(provider);
+
     const authorizationUrl =
       createOAuthAuthorizationUrl({
         provider,
@@ -236,15 +307,30 @@ export async function GET(
         codeChallenge: challenge,
       });
 
-    return NextResponse.redirect(
-      authorizationUrl,
-      302
+    return authorizationRedirect(
+      authorizationUrl
     );
   } catch (error) {
+    /*
+     * Log only operational context. Never
+     * log OAuth state, authorization codes,
+     * PKCE verifiers, tokens or secrets.
+     */
+    console.error(
+      "OAuth initiation failed.",
+      {
+        provider,
+        workspaceId,
+        integrationId,
+        error:
+          error instanceof Error
+            ? error.message
+            : "Unknown OAuth error",
+      }
+    );
+
     return errorResponse(
-      error instanceof Error
-        ? error.message
-        : "OAuth could not be started.",
+      "OAuth connection is temporarily unavailable.",
       503
     );
   }

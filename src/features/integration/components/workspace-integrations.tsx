@@ -1,6 +1,7 @@
 "use client";
 
 import {
+  useEffect,
   useMemo,
   useState,
   type FormEvent,
@@ -144,46 +145,98 @@ export function WorkspaceIntegrations({
 }: WorkspaceIntegrationsProps) {
   const trpc = useTRPC();
   const queryClient = useQueryClient();
+
   const [dialog, setDialog] =
     useState<ConnectionDialogState>(null);
-  const [deleteIntegration, setDeleteIntegration] =
-    useState<IntegrationItem | null>(
-      null
-    );
+
+  const [
+    deleteIntegration,
+    setDeleteIntegration,
+  ] = useState<IntegrationItem | null>(
+    null
+  );
+
   const [provider, setProvider] =
     useState<IntegrationProvider>(
       activeProviders[0] ?? "SLACK"
     );
+
   const [name, setName] =
     useState("");
+
   const [credentials, setCredentials] =
     useState<Record<string, string>>(
       {}
     );
-  const [oauthRedirecting, setOauthRedirecting] =
-    useState(false);
+
+  const [
+    oauthRedirecting,
+    setOauthRedirecting,
+  ] = useState(false);
+
+  useEffect(() => {
+    const currentUrl = new URL(
+      window.location.href
+    );
+
+    const result =
+      currentUrl.searchParams.get(
+        "integration"
+      );
+
+    if (
+      result !== "connected" &&
+      result !== "failed"
+    ) {
+      return;
+    }
+
+    if (result === "connected") {
+      toast.success(
+        "OAuth connection saved successfully."
+      );
+    } else {
+      toast.error(
+        "OAuth connection failed. Please try again."
+      );
+    }
+
+    currentUrl.searchParams.delete(
+      "integration"
+    );
+
+    window.history.replaceState(
+      window.history.state,
+      "",
+      `${currentUrl.pathname}${currentUrl.search}${currentUrl.hash}`
+    );
+  }, []);
 
   const workspace = useQuery(
     trpc.workspace.getById.queryOptions({
       id: workspaceId,
     })
   );
+
   const canRead =
     workspace.isSuccess &&
     hasWorkspacePermission(
       workspace.data.role,
       "integration:read"
     );
+
   const canManage =
     workspace.isSuccess &&
     hasWorkspacePermission(
       workspace.data.role,
       "integration:manage"
     );
+
   const integrationOptions =
     trpc.integration.list.queryOptions({
       workspaceId,
     });
+
   const integrations = useQuery({
     ...integrationOptions,
     enabled: canRead,
@@ -204,6 +257,7 @@ export function WorkspaceIntegrations({
     },
     [provider]
   );
+
   const usesOAuth =
     getIntegrationProvider(provider)
       .authStrategy === "OAUTH2";
@@ -230,28 +284,34 @@ export function WorkspaceIntegrations({
       {
         onSuccess: async () => {
           await refreshIntegrations();
+
           toast.success(
             "Connection tested and saved."
           );
+
           closeConnectionDialog();
         },
       }
     )
   );
+
   const reconnectIntegration =
     useMutation(
       trpc.integration.reconnect.mutationOptions(
         {
           onSuccess: async () => {
             await refreshIntegrations();
+
             toast.success(
               "Connection updated successfully."
             );
+
             closeConnectionDialog();
           },
         }
       )
     );
+
   const testConnection = useMutation(
     trpc.integration.test.mutationOptions(
       {
@@ -275,14 +335,17 @@ export function WorkspaceIntegrations({
       }
     )
   );
+
   const removeIntegration = useMutation(
     trpc.integration.delete.mutationOptions(
       {
         onSuccess: async () => {
           await refreshIntegrations();
+
           toast.success(
             "Connection deleted."
           );
+
           setDeleteIntegration(null);
         },
       }
@@ -293,6 +356,7 @@ export function WorkspaceIntegrations({
     createIntegration.isPending ||
     reconnectIntegration.isPending ||
     oauthRedirecting;
+
   const connectionError =
     createIntegration.error ??
     reconnectIntegration.error;
@@ -300,6 +364,7 @@ export function WorkspaceIntegrations({
   function openCreateDialog() {
     createIntegration.reset();
     reconnectIntegration.reset();
+
     setProvider(
       activeProviders[0] ?? "SLACK"
     );
@@ -313,9 +378,11 @@ export function WorkspaceIntegrations({
   ) {
     createIntegration.reset();
     reconnectIntegration.reset();
+
     setProvider(integration.provider);
     setName(integration.name);
     setCredentials({});
+
     setDialog({
       mode: "RECONNECT",
       integration,
@@ -344,14 +411,17 @@ export function WorkspaceIntegrations({
         "/api/integrations/oauth/start",
         window.location.origin
       );
+
       url.searchParams.set(
         "workspaceId",
         workspaceId
       );
+
       url.searchParams.set(
         "provider",
         provider
       );
+
       url.searchParams.set(
         "name",
         connectionName
@@ -367,9 +437,11 @@ export function WorkspaceIntegrations({
       }
 
       setOauthRedirecting(true);
+
       window.location.assign(
         url.toString()
       );
+
       return;
     }
 
@@ -426,11 +498,12 @@ export function WorkspaceIntegrations({
       integrations.error;
 
     return (
-      <Card>
+      <Card id="connections">
         <CardContent className="pt-6">
           <p className="font-medium text-destructive">
             Unable to load connections
           </p>
+
           <p className="mt-1 text-sm text-destructive">
             {error?.message}
           </p>
@@ -445,13 +518,14 @@ export function WorkspaceIntegrations({
 
   return (
     <>
-      <Card>
+      <Card id="connections">
         <CardHeader>
           <div className="flex items-start justify-between gap-4">
             <div>
               <CardTitle>
                 Connections
               </CardTitle>
+
               <CardDescription className="mt-1">
                 Connect, test and manage
                 encrypted credentials for
@@ -494,11 +568,13 @@ export function WorkspaceIntegrations({
                                 integration.name
                               }
                             </p>
+
                             <span className="rounded-full bg-muted px-2 py-1 text-xs font-medium">
                               {
                                 definition.label
                               }
                             </span>
+
                             <span
                               className={`rounded-full px-2 py-1 text-xs font-medium ${statusClasses[integration.status]}`}
                             >
@@ -538,7 +614,10 @@ export function WorkspaceIntegrations({
 
                           {integration.externalAccountName && (
                             <p className="mt-2 text-sm text-muted-foreground">
-                              Account: {integration.externalAccountName}
+                              Account:{" "}
+                              {
+                                integration.externalAccountName
+                              }
                             </p>
                           )}
                         </div>
@@ -565,6 +644,7 @@ export function WorkspaceIntegrations({
                                 Test
                               </Button>
                             )}
+
                             <Button
                               type="button"
                               variant="outline"
@@ -578,6 +658,7 @@ export function WorkspaceIntegrations({
                               <KeyRound className="size-4" />
                               Reconnect
                             </Button>
+
                             <Button
                               type="button"
                               variant="destructive"
@@ -604,6 +685,7 @@ export function WorkspaceIntegrations({
               <p className="font-medium">
                 No connections
               </p>
+
               <p className="mt-1 text-sm text-muted-foreground">
                 Add a provider connection to
                 use it in workflows.
@@ -616,22 +698,29 @@ export function WorkspaceIntegrations({
       <Dialog
         open={dialog !== null}
         onOpenChange={(open) => {
-          if (!open && !connectionPending) {
+          if (
+            !open &&
+            !connectionPending
+          ) {
             closeConnectionDialog();
           }
         }}
       >
         <DialogContent>
           <form
-            onSubmit={handleConnectionSubmit}
+            onSubmit={
+              handleConnectionSubmit
+            }
             className="space-y-5"
           >
             <DialogHeader>
               <DialogTitle>
-                {dialog?.mode === "RECONNECT"
+                {dialog?.mode ===
+                "RECONNECT"
                   ? "Reconnect provider"
                   : "Add connection"}
               </DialogTitle>
+
               <DialogDescription>
                 {usesOAuth
                   ? "You will continue to the provider to authorize Synapse. OAuth tokens are encrypted before storage."
@@ -646,6 +735,7 @@ export function WorkspaceIntegrations({
               >
                 Provider
               </label>
+
               <select
                 id="integration-provider"
                 value={provider}
@@ -659,15 +749,22 @@ export function WorkspaceIntegrations({
                     event.target
                       .value as IntegrationProvider
                   );
+
                   setCredentials({});
                 }}
                 className="h-9 w-full rounded-md border bg-background px-3 text-sm outline-none focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/50 disabled:cursor-not-allowed disabled:opacity-50"
               >
                 {activeProviders.map(
-                  (availableProvider) => (
+                  (
+                    availableProvider
+                  ) => (
                     <option
-                      key={availableProvider}
-                      value={availableProvider}
+                      key={
+                        availableProvider
+                      }
+                      value={
+                        availableProvider
+                      }
                     >
                       {
                         getIntegrationProvider(
@@ -680,7 +777,8 @@ export function WorkspaceIntegrations({
               </select>
             </div>
 
-            {dialog?.mode === "CREATE" && (
+            {dialog?.mode ===
+              "CREATE" && (
               <div className="space-y-2">
                 <label
                   htmlFor="integration-name"
@@ -688,6 +786,7 @@ export function WorkspaceIntegrations({
                 >
                   Name
                 </label>
+
                 <Input
                   id="integration-name"
                   value={name}
@@ -695,7 +794,9 @@ export function WorkspaceIntegrations({
                   minLength={2}
                   maxLength={50}
                   placeholder="Team notifications"
-                  disabled={connectionPending}
+                  disabled={
+                    connectionPending
+                  }
                   onChange={(event) =>
                     setName(
                       event.target.value
@@ -717,6 +818,7 @@ export function WorkspaceIntegrations({
                   >
                     {field.label}
                   </label>
+
                   <Input
                     id={`credential-${field.key}`}
                     type={
@@ -729,13 +831,17 @@ export function WorkspaceIntegrations({
                         field.key
                       ] ?? ""
                     }
-                    required={field.required}
+                    required={
+                      field.required
+                    }
                     autoComplete="off"
                     placeholder={credentialPlaceholder(
                       provider,
                       field.key
                     )}
-                    disabled={connectionPending}
+                    disabled={
+                      connectionPending
+                    }
                     onChange={(event) =>
                       setCredentials(
                         (current) => ({
@@ -753,16 +859,19 @@ export function WorkspaceIntegrations({
 
             {usesOAuth && (
               <p className="rounded-md border bg-muted/40 p-3 text-sm text-muted-foreground">
-                Synapse never asks you to paste
-                an OAuth access token. Sign in
-                directly on the provider&apos;s
-                authorization page.
+                Synapse never asks you to
+                paste an OAuth access token.
+                Sign in directly on the
+                provider&apos;s authorization
+                page.
               </p>
             )}
 
             {connectionError && (
               <p className="text-sm font-medium text-destructive">
-                {connectionError.message}
+                {
+                  connectionError.message
+                }
               </p>
             )}
 
@@ -770,18 +879,26 @@ export function WorkspaceIntegrations({
               <Button
                 type="button"
                 variant="outline"
-                disabled={connectionPending}
-                onClick={closeConnectionDialog}
+                disabled={
+                  connectionPending
+                }
+                onClick={
+                  closeConnectionDialog
+                }
               >
                 Cancel
               </Button>
+
               <Button
                 type="submit"
-                disabled={connectionPending}
+                disabled={
+                  connectionPending
+                }
               >
                 {connectionPending && (
                   <Loader2 className="size-4 animate-spin" />
                 )}
+
                 {usesOAuth
                   ? `Continue to ${
                       getIntegrationProvider(
@@ -796,7 +913,9 @@ export function WorkspaceIntegrations({
       </Dialog>
 
       <Dialog
-        open={deleteIntegration !== null}
+        open={
+          deleteIntegration !== null
+        }
         onOpenChange={(open) => {
           if (
             !open &&
@@ -811,10 +930,12 @@ export function WorkspaceIntegrations({
             <DialogTitle>
               Delete connection?
             </DialogTitle>
+
             <DialogDescription>
-              Workflows using this connection
-              will fail until another
-              credential is selected.
+              Workflows using this
+              connection will fail until
+              another credential is
+              selected.
             </DialogDescription>
           </DialogHeader>
 
@@ -840,6 +961,7 @@ export function WorkspaceIntegrations({
             >
               Cancel
             </Button>
+
             <Button
               type="button"
               variant="destructive"
@@ -849,9 +971,12 @@ export function WorkspaceIntegrations({
               }
               onClick={() => {
                 if (deleteIntegration) {
-                  removeIntegration.mutate({
-                    id: deleteIntegration.id,
-                  });
+                  removeIntegration.mutate(
+                    {
+                      id:
+                        deleteIntegration.id,
+                    }
+                  );
                 }
               }}
             >

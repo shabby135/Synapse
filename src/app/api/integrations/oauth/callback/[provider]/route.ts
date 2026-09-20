@@ -1,6 +1,7 @@
 import {
   and,
   eq,
+  gt,
 } from "drizzle-orm";
 import {
   NextResponse,
@@ -25,6 +26,7 @@ import {
 import {
   exchangeOAuthCode,
   fetchOAuthAccount,
+  getApplicationOrigin,
 } from "@/features/integration/oauth-service";
 import { db } from "@/lib/db";
 import {
@@ -42,18 +44,17 @@ type RouteContext = {
 };
 
 function workspaceRedirect({
-  request,
   workspaceId,
   result,
 }: {
-  request: Request;
   workspaceId: string;
   result: "connected" | "failed";
 }) {
   const url = new URL(
     `/workspaces/${workspaceId}`,
-    request.url
+    getApplicationOrigin()
   );
+
   url.searchParams.set(
     "integration",
     result
@@ -69,13 +70,16 @@ export async function GET(
 ) {
   const { provider: providerValue } =
     await context.params;
+
   const requestUrl = new URL(
     request.url
   );
+
   const state =
     requestUrl.searchParams.get(
       "state"
     ) ?? "";
+
   const code =
     requestUrl.searchParams.get(
       "code"
@@ -87,27 +91,45 @@ export async function GET(
     state.length > 200
   ) {
     return NextResponse.json(
-      { error: "Invalid OAuth callback." },
+      {
+        error:
+          "Invalid OAuth callback.",
+      },
       { status: 400 }
     );
   }
 
   const provider = providerValue;
+  const now = new Date();
+
+  /*
+   * Consume the state atomically. Binding the
+   * provider and expiration check to the delete
+   * prevents a callback using the wrong provider
+   * path from consuming a valid OAuth state.
+   */
   const [storedState] = await db
     .delete(integrationOAuthState)
     .where(
-      eq(
-        integrationOAuthState.stateHash,
-        hashOAuthState(state)
+      and(
+        eq(
+          integrationOAuthState
+            .stateHash,
+          hashOAuthState(state)
+        ),
+        eq(
+          integrationOAuthState.provider,
+          provider
+        ),
+        gt(
+          integrationOAuthState.expiresAt,
+          now
+        )
       )
     )
     .returning();
 
-  if (
-    !storedState ||
-    storedState.provider !== provider ||
-    storedState.expiresAt <= new Date()
-  ) {
+  if (!storedState) {
     return NextResponse.json(
       {
         error:
@@ -124,7 +146,6 @@ export async function GET(
     !code
   ) {
     return workspaceRedirect({
-      request,
       workspaceId:
         storedState.workspaceId,
       result: "failed",
@@ -153,6 +174,7 @@ export async function GET(
             provider,
           }),
       });
+
     const token = await exchangeOAuthCode({
       provider,
       code,
@@ -160,6 +182,7 @@ export async function GET(
       redirectUri:
         storedState.redirectUri,
     });
+
     const credentials =
       validateProviderCredentials(
         provider,
@@ -174,15 +197,18 @@ export async function GET(
             : {}),
         }
       );
+
     const account =
       await fetchOAuthAccount({
         provider,
         accessToken:
           token.accessToken,
       });
+
     const integrationId =
       storedState.integrationId ??
       crypto.randomUUID();
+
     const encrypted =
       encryptIntegrationCredentials({
         credentials,
@@ -194,6 +220,7 @@ export async function GET(
             integrationId,
           }),
       });
+
     const values = {
       status: "ACTIVE" as const,
       encryptedValue:
@@ -202,7 +229,8 @@ export async function GET(
         encrypted.initializationVector,
       authenticationTag:
         encrypted.authenticationTag,
-      keyVersion: encrypted.keyVersion,
+      keyVersion:
+        encrypted.keyVersion,
       credentialFormatVersion:
         encrypted
           .credentialFormatVersion,
@@ -213,13 +241,16 @@ export async function GET(
             credentials
           ),
         provider: {
-          scope: token.scope ?? null,
+          scope:
+            token.scope ?? null,
         },
       },
-      externalAccountId: account.id,
+      externalAccountId:
+        account.id,
       externalAccountName:
         account.name,
-      expiresAt: token.expiresAt,
+      expiresAt:
+        token.expiresAt,
       lastTestedAt: new Date(),
       lastError: null,
       disabledAt: null,
@@ -274,14 +305,32 @@ export async function GET(
     }
 
     return workspaceRedirect({
-      request,
       workspaceId:
         storedState.workspaceId,
       result: "connected",
     });
-  } catch {
+  } catch (error) {
+    /*
+     * Never log the authorization code,
+     * OAuth state, access token, refresh
+     * token or encrypted credentials.
+     */
+    console.error(
+      "OAuth callback failed.",
+      {
+        provider,
+        workspaceId:
+          storedState.workspaceId,
+        integrationId:
+          storedState.integrationId,
+        error:
+          error instanceof Error
+            ? error.message
+            : "Unknown OAuth error",
+      }
+    );
+
     return workspaceRedirect({
-      request,
       workspaceId:
         storedState.workspaceId,
       result: "failed",
