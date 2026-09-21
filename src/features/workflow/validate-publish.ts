@@ -1,5 +1,3 @@
-import { configurationForPublish, DataMappingError, getAncestorNodeIds } from "./data-mapping";
-
 import type {
   WorkflowDefinition,
 } from "@/lib/db/schema/workflow";
@@ -8,6 +6,15 @@ import {
   AiPromptActionError,
   parseAiPromptConfiguration,
 } from "./ai-prompt-configuration";
+import {
+  configurationForPublish,
+  DataMappingError,
+  getAncestorNodeIds,
+} from "./data-mapping";
+import {
+  GoogleCalendarActionError,
+  parseGoogleCalendarActionConfiguration,
+} from "./google-calendar-action-configuration";
 import {
   HttpActionError,
   parseHttpActionConfiguration,
@@ -36,6 +43,7 @@ const supportedActionTypes =
     "AI_PROMPT",
     "SLACK_MESSAGE",
     "DISCORD_MESSAGE",
+    "GOOGLE_CALENDAR_CREATE_EVENT",
   ]);
 
 export function validateWorkflowForPublish(
@@ -129,11 +137,17 @@ export function validateWorkflowForPublish(
     try {
       const validationData = {
         ...action.data,
-        configuration: configurationForPublish(
-          action.data.configuration ?? {},
-          getAncestorNodeIds(action.id, edges)
-        ),
+        configuration:
+          configurationForPublish(
+            action.data.configuration ??
+              {},
+            getAncestorNodeIds(
+              action.id,
+              edges
+            )
+          ),
       };
+
       if (
         actionType ===
         "HTTP_REQUEST"
@@ -161,15 +175,27 @@ export function validateWorkflowForPublish(
           validationData
         );
       }
+
+      if (
+        actionType ===
+        "GOOGLE_CALENDAR_CREATE_EVENT"
+      ) {
+        parseGoogleCalendarActionConfiguration(
+          validationData
+        );
+      }
     } catch (error) {
       if (
-        error instanceof DataMappingError ||
+        error instanceof
+          DataMappingError ||
         error instanceof
           HttpActionError ||
         error instanceof
           AiPromptActionError ||
         error instanceof
-          MessagingActionError
+          MessagingActionError ||
+        error instanceof
+          GoogleCalendarActionError
       ) {
         return {
           valid: false,

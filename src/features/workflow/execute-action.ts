@@ -1,8 +1,14 @@
-import { resolveActionConfiguration, type MappingContext } from "./data-mapping";
+import {
+  resolveActionConfiguration,
+  type MappingContext,
+} from "./data-mapping";
 
 import {
   executeAiPrompt,
 } from "./execute-ai-prompt";
+import {
+  executeGoogleCalendarAction,
+} from "./execute-google-calendar-action";
 import {
   executeHttpRequest,
 } from "./execute-http-request";
@@ -44,13 +50,24 @@ export async function executeAction({
 }: ExecuteActionOptions): Promise<
   Record<string, unknown>
 > {
-  const originalPrompt = data.configuration?.prompt;
-  const promptHadMapping = typeof originalPrompt === "string" && originalPrompt.includes("{{");
+  const originalPrompt =
+    data.configuration?.prompt;
+
+  const promptHadMapping =
+    typeof originalPrompt === "string" &&
+    originalPrompt.includes("{{");
+
   data = {
     ...data,
-    configuration: resolveActionConfiguration(data.configuration ?? {}, mappingContext ?? {
-      trigger: input, input, nodes: {},
-    }),
+    configuration:
+      resolveActionConfiguration(
+        data.configuration ?? {},
+        mappingContext ?? {
+          trigger: input,
+          input,
+          nodes: {},
+        }
+      ),
   };
 
   const actionType =
@@ -88,7 +105,8 @@ export async function executeAction({
         data,
         input,
         templatesResolved: true,
-        appendInput: !promptHadMapping,
+        appendInput:
+          !promptHadMapping,
       });
 
     case "SLACK_MESSAGE":
@@ -98,6 +116,14 @@ export async function executeAction({
         data,
         input,
         templatesResolved: true,
+      });
+
+    case "GOOGLE_CALENDAR_CREATE_EVENT":
+      return executeGoogleCalendarAction({
+        runId,
+        workflowId,
+        nodeId,
+        data,
       });
 
     default:

@@ -17,15 +17,26 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import type {
-  WorkflowCanvasNode,
   WorkflowCanvasEdge,
+  WorkflowCanvasNode,
   WorkflowNodeData,
 } from "@/features/workflow/types";
 
-import { DataMappingPanel } from "./data-mapping-panel";
-import { AiActionConfiguration } from "./ai-action-configuration";
-import { HttpActionConfiguration } from "./http-action-configuration";
-import { MessagingActionConfiguration } from "./messaging-action-configuration";
+import {
+  AiActionConfiguration,
+} from "./ai-action-configuration";
+import {
+  DataMappingPanel,
+} from "./data-mapping-panel";
+import {
+  GoogleCalendarActionConfiguration,
+} from "./google-calendar-action-configuration";
+import {
+  HttpActionConfiguration,
+} from "./http-action-configuration";
+import {
+  MessagingActionConfiguration,
+} from "./messaging-action-configuration";
 
 type NodeConfigurationPanelProps = {
   workspaceId: string;
@@ -61,6 +72,12 @@ const actionTypes = [
     value: "DISCORD_MESSAGE",
     label: "Discord Message",
   },
+  {
+    value:
+      "GOOGLE_CALENDAR_CREATE_EVENT",
+    label:
+      "Google Calendar — Create Event",
+  },
 ] as const;
 
 export function NodeConfigurationPanel({
@@ -90,10 +107,11 @@ export function NodeConfigurationPanel({
   const selectedNode = node;
 
   const actionType =
-    typeof selectedNode.data.configuration
-      ?.actionType === "string"
-      ? selectedNode.data.configuration
-          .actionType
+    typeof selectedNode.data
+      .configuration?.actionType ===
+    "string"
+      ? selectedNode.data
+          .configuration.actionType
       : "NO_OP";
 
   function updateData(
@@ -110,7 +128,8 @@ export function NodeConfigurationPanel({
   ) {
     updateData({
       configuration: {
-        ...selectedNode.data.configuration,
+        ...selectedNode.data
+          .configuration,
         ...changes,
       },
     });
@@ -120,7 +139,8 @@ export function NodeConfigurationPanel({
     nextActionType: string
   ) {
     if (
-      nextActionType === "HTTP_REQUEST"
+      nextActionType ===
+      "HTTP_REQUEST"
     ) {
       updateData({
         configuration: {
@@ -137,12 +157,15 @@ export function NodeConfigurationPanel({
       return;
     }
 
-    if (nextActionType === "AI_PROMPT") {
+    if (
+      nextActionType === "AI_PROMPT"
+    ) {
       updateData({
         configuration: {
           actionType: "AI_PROMPT",
           provider: "GEMINI",
-          model: "gemini-3-flash-preview",
+          model:
+            "gemini-3-flash-preview",
           systemPrompt:
             "You are a helpful assistant.",
           prompt:
@@ -166,6 +189,32 @@ export function NodeConfigurationPanel({
           integrationId: "",
           message:
             "Workflow completed:\n\n{{input}}",
+        },
+      });
+
+      return;
+    }
+
+    if (
+      nextActionType ===
+      "GOOGLE_CALENDAR_CREATE_EVENT"
+    ) {
+      updateData({
+        configuration: {
+          actionType:
+            "GOOGLE_CALENDAR_CREATE_EVENT",
+          integrationId: "",
+          calendarId: "primary",
+          title: "Workflow event",
+          description:
+            "Created by Synapse",
+          location: "",
+          startDateTime: "",
+          endDateTime: "",
+          timeZone:
+            "Asia/Kolkata",
+          attendees: "",
+          sendUpdates: false,
         },
       });
 
@@ -208,12 +257,15 @@ export function NodeConfigurationPanel({
 
             <Input
               id="node-label"
-              value={selectedNode.data.label}
+              value={
+                selectedNode.data.label
+              }
               maxLength={100}
               disabled={!canEdit}
               onChange={(event) =>
                 updateData({
-                  label: event.target.value,
+                  label:
+                    event.target.value,
                 })
               }
             />
@@ -282,7 +334,9 @@ export function NodeConfigurationPanel({
                     (action) => (
                       <option
                         key={action.value}
-                        value={action.value}
+                        value={
+                          action.value
+                        }
                       >
                         {action.label}
                       </option>
@@ -291,14 +345,20 @@ export function NodeConfigurationPanel({
                 </select>
               </div>
 
-              <DataMappingPanel key={selectedNode.id} node={selectedNode} nodes={nodes} edges={edges} />
+              <DataMappingPanel
+                key={selectedNode.id}
+                node={selectedNode}
+                nodes={nodes}
+                edges={edges}
+              />
 
               {actionType ===
                 "HTTP_REQUEST" && (
                 <HttpActionConfiguration
                   configuration={
                     selectedNode.data
-                      .configuration ?? {}
+                      .configuration ??
+                    {}
                   }
                   canEdit={canEdit}
                   onChange={
@@ -312,7 +372,8 @@ export function NodeConfigurationPanel({
                 <AiActionConfiguration
                   configuration={
                     selectedNode.data
-                      .configuration ?? {}
+                      .configuration ??
+                    {}
                   }
                   canEdit={canEdit}
                   onChange={
@@ -324,11 +385,14 @@ export function NodeConfigurationPanel({
               {actionType ===
                 "SLACK_MESSAGE" && (
                 <MessagingActionConfiguration
-                  workspaceId={workspaceId}
+                  workspaceId={
+                    workspaceId
+                  }
                   provider="SLACK"
                   configuration={
                     selectedNode.data
-                      .configuration ?? {}
+                      .configuration ??
+                    {}
                   }
                   canEdit={canEdit}
                   onChange={
@@ -340,11 +404,32 @@ export function NodeConfigurationPanel({
               {actionType ===
                 "DISCORD_MESSAGE" && (
                 <MessagingActionConfiguration
-                  workspaceId={workspaceId}
+                  workspaceId={
+                    workspaceId
+                  }
                   provider="DISCORD"
                   configuration={
                     selectedNode.data
-                      .configuration ?? {}
+                      .configuration ??
+                    {}
+                  }
+                  canEdit={canEdit}
+                  onChange={
+                    updateConfiguration
+                  }
+                />
+              )}
+
+              {actionType ===
+                "GOOGLE_CALENDAR_CREATE_EVENT" && (
+                <GoogleCalendarActionConfiguration
+                  workspaceId={
+                    workspaceId
+                  }
+                  configuration={
+                    selectedNode.data
+                      .configuration ??
+                    {}
                   }
                   canEdit={canEdit}
                   onChange={
@@ -363,7 +448,9 @@ export function NodeConfigurationPanel({
                 variant="destructive"
                 className="w-full"
                 onClick={() =>
-                  setDeleteDialogOpen(true)
+                  setDeleteDialogOpen(
+                    true
+                  )
                 }
               >
                 <Trash2 className="size-4" />
@@ -391,10 +478,11 @@ export function NodeConfigurationPanel({
 
             <DialogDescription>
               This will remove “
-              {selectedNode.data.label}” and
-              all connections attached to it.
-              The change will become permanent
-              after you save the workflow.
+              {selectedNode.data.label}”
+              and all connections attached
+              to it. The change will become
+              permanent after you save the
+              workflow.
             </DialogDescription>
           </DialogHeader>
 
@@ -403,7 +491,9 @@ export function NodeConfigurationPanel({
               type="button"
               variant="outline"
               onClick={() =>
-                setDeleteDialogOpen(false)
+                setDeleteDialogOpen(
+                  false
+                )
               }
             >
               Cancel
