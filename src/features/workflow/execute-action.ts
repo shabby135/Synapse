@@ -7,6 +7,9 @@ import {
   executeAiPrompt,
 } from "./execute-ai-prompt";
 import {
+  executeGmailAction,
+} from "./execute-gmail-action";
+import {
   executeGoogleCalendarAction,
 } from "./execute-google-calendar-action";
 import {
@@ -57,7 +60,8 @@ export async function executeAction({
     data.configuration?.prompt;
 
   const promptHadMapping =
-    typeof originalPrompt === "string" &&
+    typeof originalPrompt ===
+      "string" &&
     originalPrompt.includes("{{");
 
   data = {
@@ -132,6 +136,14 @@ export async function executeAction({
     case "GOOGLE_SHEETS_APPEND_ROW":
       return executeGoogleSheetsAction({
         workflowId,
+        data,
+      });
+
+    case "GMAIL_SEND_EMAIL":
+      return executeGmailAction({
+        runId,
+        workflowId,
+        nodeId,
         data,
       });
 

@@ -1,12 +1,16 @@
 "use client";
 
-import { useState } from "react";
+import {
+  useState,
+} from "react";
 import {
   AlertTriangle,
   Trash2,
 } from "lucide-react";
 
-import { Button } from "@/components/ui/button";
+import {
+  Button,
+} from "@/components/ui/button";
 import {
   Dialog,
   DialogContent,
@@ -15,7 +19,9 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { Input } from "@/components/ui/input";
+import {
+  Input,
+} from "@/components/ui/input";
 import type {
   WorkflowCanvasEdge,
   WorkflowCanvasNode,
@@ -28,6 +34,9 @@ import {
 import {
   DataMappingPanel,
 } from "./data-mapping-panel";
+import {
+  GmailActionConfiguration,
+} from "./gmail-action-configuration";
 import {
   GoogleCalendarActionConfiguration,
 } from "./google-calendar-action-configuration";
@@ -86,6 +95,10 @@ const actionTypes = [
       "GOOGLE_SHEETS_APPEND_ROW",
     label:
       "Google Sheets — Add Row",
+  },
+  {
+    value: "GMAIL_SEND_EMAIL",
+    label: "Gmail — Send Email",
   },
 ] as const;
 
@@ -167,7 +180,8 @@ export function NodeConfigurationPanel({
     }
 
     if (
-      nextActionType === "AI_PROMPT"
+      nextActionType ===
+      "AI_PROMPT"
     ) {
       updateData({
         configuration: {
@@ -245,6 +259,31 @@ export function NodeConfigurationPanel({
             '["{{input.name}}", "{{input.email}}"]',
           valueInputOption:
             "USER_ENTERED",
+        },
+      });
+
+      return;
+    }
+
+    if (
+      nextActionType ===
+      "GMAIL_SEND_EMAIL"
+    ) {
+      updateData({
+        configuration: {
+          actionType:
+            "GMAIL_SEND_EMAIL",
+          integrationId: "",
+          to: "",
+          cc: "",
+          bcc: "",
+          replyTo: "",
+          subject:
+            "Synapse workflow notification",
+          body:
+            "Workflow completed:\n\n{{input}}",
+          contentType:
+            "PLAIN_TEXT",
         },
       });
 
@@ -471,6 +510,24 @@ export function NodeConfigurationPanel({
               {actionType ===
                 "GOOGLE_SHEETS_APPEND_ROW" && (
                 <GoogleSheetsActionConfiguration
+                  workspaceId={
+                    workspaceId
+                  }
+                  configuration={
+                    selectedNode.data
+                      .configuration ??
+                    {}
+                  }
+                  canEdit={canEdit}
+                  onChange={
+                    updateConfiguration
+                  }
+                />
+              )}
+
+              {actionType ===
+                "GMAIL_SEND_EMAIL" && (
+                <GmailActionConfiguration
                   workspaceId={
                     workspaceId
                   }

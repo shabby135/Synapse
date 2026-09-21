@@ -397,7 +397,17 @@ function transformConfiguration(
             : type ===
                 "GOOGLE_SHEETS_APPEND_ROW"
               ? ["valuesJson"]
-              : [];
+              : type ===
+                  "GMAIL_SEND_EMAIL"
+                ? [
+                    "to",
+                    "cc",
+                    "bcc",
+                    "replyTo",
+                    "subject",
+                    "body",
+                  ]
+                : [];
 
   let visited = 0;
 
@@ -647,6 +657,15 @@ export function configurationForPublish(
 
           if (
             field === "attendees"
+          ) {
+            return "test@example.com";
+          }
+
+          if (
+            field === "to" ||
+            field === "cc" ||
+            field === "bcc" ||
+            field === "replyTo"
           ) {
             return "test@example.com";
           }
