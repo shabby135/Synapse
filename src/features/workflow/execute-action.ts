@@ -10,6 +10,9 @@ import {
   executeGoogleCalendarAction,
 } from "./execute-google-calendar-action";
 import {
+  executeGoogleSheetsAction,
+} from "./execute-google-sheets-action";
+import {
   executeHttpRequest,
 } from "./execute-http-request";
 import {
@@ -123,6 +126,12 @@ export async function executeAction({
         runId,
         workflowId,
         nodeId,
+        data,
+      });
+
+    case "GOOGLE_SHEETS_APPEND_ROW":
+      return executeGoogleSheetsAction({
+        workflowId,
         data,
       });
 

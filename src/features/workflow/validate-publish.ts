@@ -16,6 +16,10 @@ import {
   parseGoogleCalendarActionConfiguration,
 } from "./google-calendar-action-configuration";
 import {
+  GoogleSheetsActionError,
+  parseGoogleSheetsActionConfiguration,
+} from "./google-sheets-action-configuration";
+import {
   HttpActionError,
   parseHttpActionConfiguration,
 } from "./http-request-configuration";
@@ -44,6 +48,7 @@ const supportedActionTypes =
     "SLACK_MESSAGE",
     "DISCORD_MESSAGE",
     "GOOGLE_CALENDAR_CREATE_EVENT",
+    "GOOGLE_SHEETS_APPEND_ROW",
   ]);
 
 export function validateWorkflowForPublish(
@@ -184,6 +189,15 @@ export function validateWorkflowForPublish(
           validationData
         );
       }
+
+      if (
+        actionType ===
+        "GOOGLE_SHEETS_APPEND_ROW"
+      ) {
+        parseGoogleSheetsActionConfiguration(
+          validationData
+        );
+      }
     } catch (error) {
       if (
         error instanceof
@@ -195,7 +209,9 @@ export function validateWorkflowForPublish(
         error instanceof
           MessagingActionError ||
         error instanceof
-          GoogleCalendarActionError
+          GoogleCalendarActionError ||
+        error instanceof
+          GoogleSheetsActionError
       ) {
         return {
           valid: false,

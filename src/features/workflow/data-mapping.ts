@@ -83,6 +83,7 @@ export function parseReference(
   }
 
   const path = [root[0]];
+
   let rest = source.slice(
     root[0].length
   );
@@ -297,8 +298,7 @@ export function resolveTemplate(
   return applyTemplate(
     template,
     (path) => {
-      let value: unknown =
-        context;
+      let value: unknown = context;
 
       for (const key of path) {
         if (
@@ -394,7 +394,10 @@ function transformConfiguration(
                 "endDateTime",
                 "attendees",
               ]
-            : [];
+            : type ===
+                "GOOGLE_SHEETS_APPEND_ROW"
+              ? ["valuesJson"]
+              : [];
 
   let visited = 0;
 
@@ -478,10 +481,12 @@ function transformConfiguration(
       continue;
     }
 
-    if (
+    const isJsonField =
       field === "headersJson" ||
-      field === "body"
-    ) {
+      field === "body" ||
+      field === "valuesJson";
+
+    if (isJsonField) {
       if (typeof value === "string") {
         let parsed: unknown;
         let isJson = false;
@@ -526,11 +531,11 @@ function transformConfiguration(
         );
 
         result[field] =
-          field === "body"
-            ? JSON.stringify(
+          field === "headersJson"
+            ? resolved
+            : JSON.stringify(
                 resolved
-              )
-            : resolved;
+              );
       }
     } else if (
       typeof value === "string"
@@ -614,6 +619,16 @@ export function configurationForPublish(
               .startsWith("{{")
           ) {
             return {};
+          }
+
+          if (
+            field ===
+              "valuesJson" &&
+            text
+              .trim()
+              .startsWith("{{")
+          ) {
+            return ["mapped-value"];
           }
 
           if (

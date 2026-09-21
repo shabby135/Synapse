@@ -32,6 +32,9 @@ import {
   GoogleCalendarActionConfiguration,
 } from "./google-calendar-action-configuration";
 import {
+  GoogleSheetsActionConfiguration,
+} from "./google-sheets-action-configuration";
+import {
   HttpActionConfiguration,
 } from "./http-action-configuration";
 import {
@@ -77,6 +80,12 @@ const actionTypes = [
       "GOOGLE_CALENDAR_CREATE_EVENT",
     label:
       "Google Calendar — Create Event",
+  },
+  {
+    value:
+      "GOOGLE_SHEETS_APPEND_ROW",
+    label:
+      "Google Sheets — Add Row",
   },
 ] as const;
 
@@ -215,6 +224,27 @@ export function NodeConfigurationPanel({
             "Asia/Kolkata",
           attendees: "",
           sendUpdates: false,
+        },
+      });
+
+      return;
+    }
+
+    if (
+      nextActionType ===
+      "GOOGLE_SHEETS_APPEND_ROW"
+    ) {
+      updateData({
+        configuration: {
+          actionType:
+            "GOOGLE_SHEETS_APPEND_ROW",
+          integrationId: "",
+          spreadsheetId: "",
+          range: "Sheet1!A:Z",
+          valuesJson:
+            '["{{input.name}}", "{{input.email}}"]',
+          valueInputOption:
+            "USER_ENTERED",
         },
       });
 
@@ -423,6 +453,24 @@ export function NodeConfigurationPanel({
               {actionType ===
                 "GOOGLE_CALENDAR_CREATE_EVENT" && (
                 <GoogleCalendarActionConfiguration
+                  workspaceId={
+                    workspaceId
+                  }
+                  configuration={
+                    selectedNode.data
+                      .configuration ??
+                    {}
+                  }
+                  canEdit={canEdit}
+                  onChange={
+                    updateConfiguration
+                  }
+                />
+              )}
+
+              {actionType ===
+                "GOOGLE_SHEETS_APPEND_ROW" && (
+                <GoogleSheetsActionConfiguration
                   workspaceId={
                     workspaceId
                   }
