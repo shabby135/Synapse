@@ -25,6 +25,9 @@ import {
   workflowRunStep,
 } from "@/lib/db/schema/workflow-execution";
 import {
+  workflowIntegrationTriggerEvent,
+} from "@/lib/db/schema/workflow-integration-trigger";
+import {
   workflowWebhookRequest,
 } from "@/lib/db/schema/workflow-webhook";
 
@@ -35,11 +38,18 @@ import {
 export type WorkflowRunTriggerType =
   | "MANUAL"
   | "WEBHOOK"
-  | "SCHEDULE";
+  | "SCHEDULE"
+  | "INTEGRATION";
 
 type WebhookRequestOptions = {
   webhookId: string;
   idempotencyKey: string;
+  payloadHash: string;
+};
+
+type IntegrationTriggerEventOptions = {
+  triggerId: string;
+  eventKey: string;
   payloadHash: string;
 };
 
@@ -49,6 +59,7 @@ type QueueWorkflowRunOptions = {
   input: Record<string, unknown>;
   triggeredBy?: string | null;
   webhookRequest?: WebhookRequestOptions;
+  integrationEvent?: IntegrationTriggerEventOptions;
 };
 
 type FailWorkflowRunOptions = {
@@ -81,6 +92,18 @@ export class DuplicateWebhookRequestError
 
     this.name =
       "DuplicateWebhookRequestError";
+  }
+}
+
+export class DuplicateIntegrationTriggerEventError
+  extends Error {
+  constructor() {
+    super(
+      "This integration event has already been queued."
+    );
+
+    this.name =
+      "DuplicateIntegrationTriggerEventError";
   }
 }
 
@@ -151,6 +174,7 @@ export async function queueWorkflowRun({
   input,
   triggeredBy = null,
   webhookRequest,
+  integrationEvent,
 }: QueueWorkflowRunOptions): Promise<{
   id: string;
   status: "PENDING";
@@ -283,6 +307,40 @@ export async function queueWorkflowRun({
 
         if (!createdRequest) {
           throw new DuplicateWebhookRequestError();
+        }
+      }
+
+      if (integrationEvent) {
+        const [createdEvent] =
+          await transaction
+            .insert(
+              workflowIntegrationTriggerEvent
+            )
+            .values({
+              id: crypto.randomUUID(),
+              triggerId:
+                integrationEvent.triggerId,
+              eventKey:
+                integrationEvent.eventKey,
+              payloadHash:
+                integrationEvent.payloadHash,
+              runId,
+            })
+            .onConflictDoNothing({
+              target: [
+                workflowIntegrationTriggerEvent
+                  .triggerId,
+                workflowIntegrationTriggerEvent
+                  .eventKey,
+              ],
+            })
+            .returning({
+              id:
+                workflowIntegrationTriggerEvent.id,
+            });
+
+        if (!createdEvent) {
+          throw new DuplicateIntegrationTriggerEventError();
         }
       }
 

@@ -1,7 +1,12 @@
 import { serve } from "inngest/next";
 
 import { inngest } from "@/inngest/client";
-import { executeWorkflow } from "@/inngest/functions/execute-workflow";
+import {
+  executeWorkflow,
+} from "@/inngest/functions/execute-workflow";
+import {
+  pollIntegrationTriggers,
+} from "@/inngest/functions/poll-integration-triggers";
 
 export const {
   GET,
@@ -11,5 +16,6 @@ export const {
   client: inngest,
   functions: [
     executeWorkflow,
+    pollIntegrationTriggers,
   ],
 });

@@ -45,6 +45,7 @@ export const workflowTriggerType =
     "MANUAL",
     "WEBHOOK",
     "SCHEDULE",
+    "INTEGRATION",
   ]);
 
 export const workflowRun = pgTable(

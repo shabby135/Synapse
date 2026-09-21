@@ -6,4 +6,5 @@ export * from "./integration-oauth-state";
 export * from "./workflow";
 export * from "./workflow-execution";
 export * from "./workflow-webhook";
+export * from "./workflow-integration-trigger";
 export * from "./billing";
