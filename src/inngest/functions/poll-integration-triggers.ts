@@ -24,6 +24,9 @@ import {
   googleCalendarTriggerHandler,
 } from "@/features/workflow/poll-google-calendar-trigger";
 import {
+  gmailTriggerHandler,
+} from "@/features/workflow/poll-gmail-trigger";
+import {
   googleSheetsTriggerHandler,
 } from "@/features/workflow/poll-google-sheets-trigger";
 import {
@@ -61,6 +64,16 @@ if (
 ) {
   registerIntegrationTriggerHandler(
     googleCalendarTriggerHandler
+  );
+}
+
+if (
+  !getIntegrationTriggerHandler(
+    gmailTriggerHandler.type
+  )
+) {
+  registerIntegrationTriggerHandler(
+    gmailTriggerHandler
   );
 }
 
@@ -447,8 +460,7 @@ export const pollIntegrationTriggers =
                     version.activatedAt,
                   configuration:
                     node.data
-                      .configuration ??
-                    {},
+                      .configuration ?? {},
                   cursor:
                     claimed.cursor,
                 });

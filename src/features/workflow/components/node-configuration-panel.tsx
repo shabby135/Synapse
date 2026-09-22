@@ -32,6 +32,9 @@ import {
   GmailActionConfiguration,
 } from "./gmail-action-configuration";
 import {
+  GmailTriggerConfiguration,
+} from "./gmail-trigger-configuration";
+import {
   GoogleCalendarActionConfiguration,
 } from "./google-calendar-action-configuration";
 import {
@@ -118,6 +121,10 @@ const triggerTypes = [
       "GOOGLE_CALENDAR_NEW_EVENT",
     label:
       "Google Calendar — New Event",
+  },
+  {
+    value: "GMAIL_NEW_EMAIL",
+    label: "Gmail — New Email",
   },
 ] as const;
 
@@ -374,6 +381,28 @@ export function NodeConfigurationPanel({
       return;
     }
 
+    if (
+      nextTriggerType ===
+      "GMAIL_NEW_EMAIL"
+    ) {
+      updateData({
+        label: "Gmail New Email",
+        description:
+          "Starts when a new matching email is received in Gmail.",
+        configuration: {
+          triggerType:
+            "GMAIL_NEW_EMAIL",
+          integrationId: "",
+          labelId: "INBOX",
+          searchQuery: "",
+          startMode: "FROM_NOW",
+          pollIntervalMinutes: 1,
+        },
+      });
+
+      return;
+    }
+
     updateData({
       label: "Manual Trigger",
       description:
@@ -501,8 +530,7 @@ export function NodeConfigurationPanel({
                   }
                   configuration={
                     selectedNode.data
-                      .configuration ??
-                    {}
+                      .configuration ?? {}
                   }
                   canEdit={canEdit}
                   onChange={
@@ -519,8 +547,24 @@ export function NodeConfigurationPanel({
                   }
                   configuration={
                     selectedNode.data
-                      .configuration ??
-                    {}
+                      .configuration ?? {}
+                  }
+                  canEdit={canEdit}
+                  onChange={
+                    updateConfiguration
+                  }
+                />
+              )}
+
+              {triggerType ===
+                "GMAIL_NEW_EMAIL" && (
+                <GmailTriggerConfiguration
+                  workspaceId={
+                    workspaceId
+                  }
+                  configuration={
+                    selectedNode.data
+                      .configuration ?? {}
                   }
                   canEdit={canEdit}
                   onChange={
@@ -577,8 +621,7 @@ export function NodeConfigurationPanel({
                 <HttpActionConfiguration
                   configuration={
                     selectedNode.data
-                      .configuration ??
-                    {}
+                      .configuration ?? {}
                   }
                   canEdit={canEdit}
                   onChange={
@@ -592,8 +635,7 @@ export function NodeConfigurationPanel({
                 <AiActionConfiguration
                   configuration={
                     selectedNode.data
-                      .configuration ??
-                    {}
+                      .configuration ?? {}
                   }
                   canEdit={canEdit}
                   onChange={
@@ -611,8 +653,7 @@ export function NodeConfigurationPanel({
                   provider="SLACK"
                   configuration={
                     selectedNode.data
-                      .configuration ??
-                    {}
+                      .configuration ?? {}
                   }
                   canEdit={canEdit}
                   onChange={
@@ -630,8 +671,7 @@ export function NodeConfigurationPanel({
                   provider="DISCORD"
                   configuration={
                     selectedNode.data
-                      .configuration ??
-                    {}
+                      .configuration ?? {}
                   }
                   canEdit={canEdit}
                   onChange={
@@ -648,8 +688,7 @@ export function NodeConfigurationPanel({
                   }
                   configuration={
                     selectedNode.data
-                      .configuration ??
-                    {}
+                      .configuration ?? {}
                   }
                   canEdit={canEdit}
                   onChange={
@@ -666,8 +705,7 @@ export function NodeConfigurationPanel({
                   }
                   configuration={
                     selectedNode.data
-                      .configuration ??
-                    {}
+                      .configuration ?? {}
                   }
                   canEdit={canEdit}
                   onChange={
@@ -684,8 +722,7 @@ export function NodeConfigurationPanel({
                   }
                   configuration={
                     selectedNode.data
-                      .configuration ??
-                    {}
+                      .configuration ?? {}
                   }
                   canEdit={canEdit}
                   onChange={
