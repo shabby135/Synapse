@@ -12,6 +12,14 @@ import {
   getAncestorNodeIds,
 } from "./data-mapping";
 import {
+  GoogleCalendarActionError,
+  parseGoogleCalendarActionConfiguration,
+} from "./google-calendar-action-configuration";
+import {
+  GoogleCalendarTriggerError,
+  parseGoogleCalendarTriggerConfiguration,
+} from "./google-calendar-trigger-configuration";
+import {
   GmailActionError,
   parseGmailActionConfiguration,
 } from "./gmail-action-configuration";
@@ -20,13 +28,9 @@ import {
   parseGmailTriggerConfiguration,
 } from "./gmail-trigger-configuration";
 import {
-  GoogleCalendarActionError,
-  parseGoogleCalendarActionConfiguration,
-} from "./google-calendar-action-configuration";
-import {
-  GoogleCalendarTriggerError,
-  parseGoogleCalendarTriggerConfiguration,
-} from "./google-calendar-trigger-configuration";
+  GitHubTriggerError,
+  parseGitHubTriggerConfiguration,
+} from "./github-trigger-configuration";
 import {
   GoogleSheetsActionError,
   parseGoogleSheetsActionConfiguration,
@@ -89,8 +93,7 @@ export function validateWorkflowForPublish(
     };
   }
 
-  const { nodes, edges } =
-    parsed.data;
+  const { nodes, edges } = parsed.data;
 
   const trigger = nodes.find(
     (node) =>
@@ -133,11 +136,17 @@ export function validateWorkflowForPublish(
       parseGmailTriggerConfiguration(
         trigger.data
       );
+    } else if (
+      triggerType ===
+      "GITHUB_NEW_ISSUE"
+    ) {
+      parseGitHubTriggerConfiguration(
+        trigger.data
+      );
     } else {
       return {
         valid: false,
-        message:
-          `${trigger.data.label} uses a trigger type that is not implemented yet.`,
+        message: `${trigger.data.label} uses a trigger type that is not implemented yet.`,
       };
     }
   } catch (error) {
@@ -146,20 +155,18 @@ export function validateWorkflowForPublish(
         GoogleSheetsTriggerError ||
       error instanceof
         GoogleCalendarTriggerError ||
-      error instanceof
-        GmailTriggerError
+      error instanceof GmailTriggerError ||
+      error instanceof GitHubTriggerError
     ) {
       return {
         valid: false,
-        message:
-          `${trigger.data.label}: ${error.message}`,
+        message: `${trigger.data.label}: ${error.message}`,
       };
     }
 
     return {
       valid: false,
-      message:
-        `${trigger.data.label} has invalid configuration.`,
+      message: `${trigger.data.label} has invalid configuration.`,
     };
   }
 
@@ -195,14 +202,12 @@ export function validateWorkflowForPublish(
         ?.actionType;
 
     if (
-      typeof actionType !==
-        "string" ||
+      typeof actionType !== "string" ||
       !actionType.trim()
     ) {
       return {
         valid: false,
-        message:
-          `${action.data.label} requires an action type.`,
+        message: `${action.data.label} requires an action type.`,
       };
     }
 
@@ -213,8 +218,7 @@ export function validateWorkflowForPublish(
     ) {
       return {
         valid: false,
-        message:
-          `${action.data.label} uses an action type that is not implemented yet.`,
+        message: `${action.data.label} uses an action type that is not implemented yet.`,
       };
     }
 
@@ -223,8 +227,8 @@ export function validateWorkflowForPublish(
         ...action.data,
         configuration:
           configurationForPublish(
-            action.data
-              .configuration ?? {},
+            action.data.configuration ??
+              {},
             getAncestorNodeIds(
               action.id,
               edges
@@ -242,8 +246,7 @@ export function validateWorkflowForPublish(
       }
 
       if (
-        actionType ===
-        "AI_PROMPT"
+        actionType === "AI_PROMPT"
       ) {
         parseAiPromptConfiguration(
           validationData
@@ -306,15 +309,13 @@ export function validateWorkflowForPublish(
       ) {
         return {
           valid: false,
-          message:
-            `${action.data.label}: ${error.message}`,
+          message: `${action.data.label}: ${error.message}`,
         };
       }
 
       return {
         valid: false,
-        message:
-          `${action.data.label} has invalid configuration.`,
+        message: `${action.data.label} has invalid configuration.`,
       };
     }
   }
@@ -334,9 +335,7 @@ export function validateWorkflowForPublish(
       ?.push(edge.target);
   }
 
-  const reachable =
-    new Set<string>();
-
+  const reachable = new Set<string>();
   const queue = [trigger.id];
 
   while (queue.length > 0) {
@@ -359,25 +358,20 @@ export function validateWorkflowForPublish(
     }
   }
 
-  const unreachableNode =
-    nodes.find(
-      (node) =>
-        !reachable.has(node.id)
-    );
+  const unreachableNode = nodes.find(
+    (node) =>
+      !reachable.has(node.id)
+  );
 
   if (unreachableNode) {
     return {
       valid: false,
-      message:
-        `${unreachableNode.data.label} is not connected to the trigger.`,
+      message: `${unreachableNode.data.label} is not connected to the trigger.`,
     };
   }
 
-  const visiting =
-    new Set<string>();
-
-  const visited =
-    new Set<string>();
+  const visiting = new Set<string>();
+  const visited = new Set<string>();
 
   function containsCycle(
     nodeId: string
@@ -397,9 +391,7 @@ export function validateWorkflowForPublish(
       adjacency.get(nodeId) ?? []
     ) {
       if (
-        containsCycle(
-          nextNodeId
-        )
+        containsCycle(nextNodeId)
       ) {
         return true;
       }
@@ -411,9 +403,7 @@ export function validateWorkflowForPublish(
     return false;
   }
 
-  if (
-    containsCycle(trigger.id)
-  ) {
+  if (containsCycle(trigger.id)) {
     return {
       valid: false,
       message:

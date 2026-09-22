@@ -29,17 +29,20 @@ import {
   DataMappingPanel,
 } from "./data-mapping-panel";
 import {
+  GoogleCalendarActionConfiguration,
+} from "./google-calendar-action-configuration";
+import {
+  GoogleCalendarTriggerConfiguration,
+} from "./google-calendar-trigger-configuration";
+import {
   GmailActionConfiguration,
 } from "./gmail-action-configuration";
 import {
   GmailTriggerConfiguration,
 } from "./gmail-trigger-configuration";
 import {
-  GoogleCalendarActionConfiguration,
-} from "./google-calendar-action-configuration";
-import {
-  GoogleCalendarTriggerConfiguration,
-} from "./google-calendar-trigger-configuration";
+  GitHubTriggerConfiguration,
+} from "./github-trigger-configuration";
 import {
   GoogleSheetsActionConfiguration,
 } from "./google-sheets-action-configuration";
@@ -94,10 +97,8 @@ const actionTypes = [
       "Google Calendar — Create Event",
   },
   {
-    value:
-      "GOOGLE_SHEETS_APPEND_ROW",
-    label:
-      "Google Sheets — Add Row",
+    value: "GOOGLE_SHEETS_APPEND_ROW",
+    label: "Google Sheets — Add Row",
   },
   {
     value: "GMAIL_SEND_EMAIL",
@@ -111,10 +112,8 @@ const triggerTypes = [
     label: "Manual trigger",
   },
   {
-    value:
-      "GOOGLE_SHEETS_NEW_ROW",
-    label:
-      "Google Sheets — New Row",
+    value: "GOOGLE_SHEETS_NEW_ROW",
+    label: "Google Sheets — New Row",
   },
   {
     value:
@@ -125,6 +124,10 @@ const triggerTypes = [
   {
     value: "GMAIL_NEW_EMAIL",
     label: "Gmail — New Email",
+  },
+  {
+    value: "GITHUB_NEW_ISSUE",
+    label: "GitHub — New Issue",
   },
 ] as const;
 
@@ -214,8 +217,7 @@ export function NodeConfigurationPanel({
     }
 
     if (
-      nextActionType ===
-      "AI_PROMPT"
+      nextActionType === "AI_PROMPT"
     ) {
       updateData({
         configuration: {
@@ -242,8 +244,7 @@ export function NodeConfigurationPanel({
     ) {
       updateData({
         configuration: {
-          actionType:
-            nextActionType,
+          actionType: nextActionType,
           integrationId: "",
           message:
             "Workflow completed:\n\n{{input}}",
@@ -296,7 +297,6 @@ export function NodeConfigurationPanel({
             "USER_ENTERED",
         },
       });
-
       return;
     }
 
@@ -321,7 +321,6 @@ export function NodeConfigurationPanel({
             "PLAIN_TEXT",
         },
       });
-
       return;
     }
 
@@ -340,8 +339,7 @@ export function NodeConfigurationPanel({
       "GOOGLE_SHEETS_NEW_ROW"
     ) {
       updateData({
-        label:
-          "Google Sheets New Row",
+        label: "Google Sheets New Row",
         description:
           "Starts when a new row is detected in Google Sheets.",
         configuration: {
@@ -355,7 +353,6 @@ export function NodeConfigurationPanel({
           pollIntervalMinutes: 1,
         },
       });
-
       return;
     }
 
@@ -377,7 +374,6 @@ export function NodeConfigurationPanel({
           pollIntervalMinutes: 1,
         },
       });
-
       return;
     }
 
@@ -399,7 +395,27 @@ export function NodeConfigurationPanel({
           pollIntervalMinutes: 1,
         },
       });
+      return;
+    }
 
+    if (
+      nextTriggerType ===
+      "GITHUB_NEW_ISSUE"
+    ) {
+      updateData({
+        label: "GitHub New Issue",
+        description:
+          "Starts when a new issue is created in a GitHub repository.",
+        configuration: {
+          triggerType:
+            "GITHUB_NEW_ISSUE",
+          integrationId: "",
+          repository: "",
+          labels: "",
+          startMode: "FROM_NOW",
+          pollIntervalMinutes: 1,
+        },
+      });
       return;
     }
 
@@ -508,12 +524,8 @@ export function NodeConfigurationPanel({
                   {triggerTypes.map(
                     (trigger) => (
                       <option
-                        key={
-                          trigger.value
-                        }
-                        value={
-                          trigger.value
-                        }
+                        key={trigger.value}
+                        value={trigger.value}
                       >
                         {trigger.label}
                       </option>
@@ -525,9 +537,7 @@ export function NodeConfigurationPanel({
               {triggerType ===
                 "GOOGLE_SHEETS_NEW_ROW" && (
                 <GoogleSheetsTriggerConfiguration
-                  workspaceId={
-                    workspaceId
-                  }
+                  workspaceId={workspaceId}
                   configuration={
                     selectedNode.data
                       .configuration ?? {}
@@ -542,9 +552,7 @@ export function NodeConfigurationPanel({
               {triggerType ===
                 "GOOGLE_CALENDAR_NEW_EVENT" && (
                 <GoogleCalendarTriggerConfiguration
-                  workspaceId={
-                    workspaceId
-                  }
+                  workspaceId={workspaceId}
                   configuration={
                     selectedNode.data
                       .configuration ?? {}
@@ -559,9 +567,22 @@ export function NodeConfigurationPanel({
               {triggerType ===
                 "GMAIL_NEW_EMAIL" && (
                 <GmailTriggerConfiguration
-                  workspaceId={
-                    workspaceId
+                  workspaceId={workspaceId}
+                  configuration={
+                    selectedNode.data
+                      .configuration ?? {}
                   }
+                  canEdit={canEdit}
+                  onChange={
+                    updateConfiguration
+                  }
+                />
+              )}
+
+              {triggerType ===
+                "GITHUB_NEW_ISSUE" && (
+                <GitHubTriggerConfiguration
+                  workspaceId={workspaceId}
                   configuration={
                     selectedNode.data
                       .configuration ?? {}
@@ -621,7 +642,8 @@ export function NodeConfigurationPanel({
                 <HttpActionConfiguration
                   configuration={
                     selectedNode.data
-                      .configuration ?? {}
+                      .configuration ??
+                    {}
                   }
                   canEdit={canEdit}
                   onChange={
@@ -635,7 +657,8 @@ export function NodeConfigurationPanel({
                 <AiActionConfiguration
                   configuration={
                     selectedNode.data
-                      .configuration ?? {}
+                      .configuration ??
+                    {}
                   }
                   canEdit={canEdit}
                   onChange={
@@ -653,7 +676,8 @@ export function NodeConfigurationPanel({
                   provider="SLACK"
                   configuration={
                     selectedNode.data
-                      .configuration ?? {}
+                      .configuration ??
+                    {}
                   }
                   canEdit={canEdit}
                   onChange={
@@ -671,7 +695,8 @@ export function NodeConfigurationPanel({
                   provider="DISCORD"
                   configuration={
                     selectedNode.data
-                      .configuration ?? {}
+                      .configuration ??
+                    {}
                   }
                   canEdit={canEdit}
                   onChange={
@@ -688,7 +713,8 @@ export function NodeConfigurationPanel({
                   }
                   configuration={
                     selectedNode.data
-                      .configuration ?? {}
+                      .configuration ??
+                    {}
                   }
                   canEdit={canEdit}
                   onChange={
@@ -700,34 +726,20 @@ export function NodeConfigurationPanel({
               {actionType ===
                 "GOOGLE_SHEETS_APPEND_ROW" && (
                 <GoogleSheetsActionConfiguration
-                  workspaceId={
-                    workspaceId
-                  }
-                  configuration={
-                    selectedNode.data
-                      .configuration ?? {}
-                  }
+                  workspaceId={workspaceId}
+                  configuration={selectedNode.data.configuration ?? {}}
                   canEdit={canEdit}
-                  onChange={
-                    updateConfiguration
-                  }
+                  onChange={updateConfiguration}
                 />
               )}
 
               {actionType ===
                 "GMAIL_SEND_EMAIL" && (
                 <GmailActionConfiguration
-                  workspaceId={
-                    workspaceId
-                  }
-                  configuration={
-                    selectedNode.data
-                      .configuration ?? {}
-                  }
+                  workspaceId={workspaceId}
+                  configuration={selectedNode.data.configuration ?? {}}
                   canEdit={canEdit}
-                  onChange={
-                    updateConfiguration
-                  }
+                  onChange={updateConfiguration}
                 />
               )}
             </>
