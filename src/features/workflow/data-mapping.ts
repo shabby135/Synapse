@@ -83,7 +83,6 @@ export function parseReference(
   }
 
   const path = [root[0]];
-
   let rest = source.slice(
     root[0].length
   );
@@ -298,7 +297,8 @@ export function resolveTemplate(
   return applyTemplate(
     template,
     (path) => {
-      let value: unknown = context;
+      let value: unknown =
+        context;
 
       for (const key of path) {
         if (
@@ -407,6 +407,14 @@ function transformConfiguration(
                     "subject",
                     "body",
                   ]
+                : type ===
+                    "GITHUB_CREATE_ISSUE"
+                  ? [
+                      "title",
+                      "body",
+                      "labels",
+                      "assignees",
+                    ]
                 : [];
 
   let visited = 0;
@@ -493,7 +501,8 @@ function transformConfiguration(
 
     const isJsonField =
       field === "headersJson" ||
-      field === "body" ||
+      (field === "body" &&
+        type === "HTTP_REQUEST") ||
       field === "valuesJson";
 
     if (isJsonField) {
@@ -552,7 +561,8 @@ function transformConfiguration(
     ) {
       result[field] = transform(
         value,
-        false,
+        field === "labels" ||
+          field === "assignees",
         field
       );
     }
@@ -632,11 +642,8 @@ export function configurationForPublish(
           }
 
           if (
-            field ===
-              "valuesJson" &&
-            text
-              .trim()
-              .startsWith("{{")
+            field === "valuesJson" &&
+            text.trim().startsWith("{{")
           ) {
             return ["mapped-value"];
           }
@@ -659,6 +666,13 @@ export function configurationForPublish(
             field === "attendees"
           ) {
             return "test@example.com";
+          }
+
+          if (
+            field === "labels" ||
+            field === "assignees"
+          ) {
+            return ["mapped-value"];
           }
 
           if (

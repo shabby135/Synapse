@@ -7,14 +7,17 @@ import {
   executeAiPrompt,
 } from "./execute-ai-prompt";
 import {
-  executeGmailAction,
-} from "./execute-gmail-action";
-import {
   executeGoogleCalendarAction,
 } from "./execute-google-calendar-action";
 import {
+  executeGmailAction,
+} from "./execute-gmail-action";
+import {
   executeGoogleSheetsAction,
 } from "./execute-google-sheets-action";
+import {
+  executeGitHubAction,
+} from "./execute-github-action";
 import {
   executeHttpRequest,
 } from "./execute-http-request";
@@ -60,8 +63,7 @@ export async function executeAction({
     data.configuration?.prompt;
 
   const promptHadMapping =
-    typeof originalPrompt ===
-      "string" &&
+    typeof originalPrompt === "string" &&
     originalPrompt.includes("{{");
 
   data = {
@@ -141,6 +143,14 @@ export async function executeAction({
 
     case "GMAIL_SEND_EMAIL":
       return executeGmailAction({
+        runId,
+        workflowId,
+        nodeId,
+        data,
+      });
+
+    case "GITHUB_CREATE_ISSUE":
+      return executeGitHubAction({
         runId,
         workflowId,
         nodeId,

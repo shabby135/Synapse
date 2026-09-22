@@ -29,20 +29,23 @@ import {
   DataMappingPanel,
 } from "./data-mapping-panel";
 import {
-  GoogleCalendarActionConfiguration,
-} from "./google-calendar-action-configuration";
-import {
-  GoogleCalendarTriggerConfiguration,
-} from "./google-calendar-trigger-configuration";
-import {
   GmailActionConfiguration,
 } from "./gmail-action-configuration";
 import {
   GmailTriggerConfiguration,
 } from "./gmail-trigger-configuration";
 import {
+  GitHubActionConfiguration,
+} from "./github-action-configuration";
+import {
   GitHubTriggerConfiguration,
 } from "./github-trigger-configuration";
+import {
+  GoogleCalendarActionConfiguration,
+} from "./google-calendar-action-configuration";
+import {
+  GoogleCalendarTriggerConfiguration,
+} from "./google-calendar-trigger-configuration";
 import {
   GoogleSheetsActionConfiguration,
 } from "./google-sheets-action-configuration";
@@ -103,6 +106,10 @@ const actionTypes = [
   {
     value: "GMAIL_SEND_EMAIL",
     label: "Gmail — Send Email",
+  },
+  {
+    value: "GITHUB_CREATE_ISSUE",
+    label: "GitHub — Create Issue",
   },
 ] as const;
 
@@ -297,6 +304,7 @@ export function NodeConfigurationPanel({
             "USER_ENTERED",
         },
       });
+
       return;
     }
 
@@ -321,6 +329,29 @@ export function NodeConfigurationPanel({
             "PLAIN_TEXT",
         },
       });
+
+      return;
+    }
+
+    if (
+      nextActionType ===
+      "GITHUB_CREATE_ISSUE"
+    ) {
+      updateData({
+        configuration: {
+          actionType:
+            "GITHUB_CREATE_ISSUE",
+          integrationId: "",
+          repository: "",
+          title:
+            "Issue from Synapse workflow",
+          body:
+            "Created automatically by Synapse.\n\n{{input}}",
+          labels: "",
+          assignees: "",
+        },
+      });
+
       return;
     }
 
@@ -353,6 +384,7 @@ export function NodeConfigurationPanel({
           pollIntervalMinutes: 1,
         },
       });
+
       return;
     }
 
@@ -374,6 +406,7 @@ export function NodeConfigurationPanel({
           pollIntervalMinutes: 1,
         },
       });
+
       return;
     }
 
@@ -395,6 +428,7 @@ export function NodeConfigurationPanel({
           pollIntervalMinutes: 1,
         },
       });
+
       return;
     }
 
@@ -416,6 +450,7 @@ export function NodeConfigurationPanel({
           pollIntervalMinutes: 1,
         },
       });
+
       return;
     }
 
@@ -726,20 +761,51 @@ export function NodeConfigurationPanel({
               {actionType ===
                 "GOOGLE_SHEETS_APPEND_ROW" && (
                 <GoogleSheetsActionConfiguration
-                  workspaceId={workspaceId}
-                  configuration={selectedNode.data.configuration ?? {}}
+                  workspaceId={
+                    workspaceId
+                  }
+                  configuration={
+                    selectedNode.data
+                      .configuration ?? {}
+                  }
                   canEdit={canEdit}
-                  onChange={updateConfiguration}
+                  onChange={
+                    updateConfiguration
+                  }
                 />
               )}
 
               {actionType ===
                 "GMAIL_SEND_EMAIL" && (
                 <GmailActionConfiguration
-                  workspaceId={workspaceId}
-                  configuration={selectedNode.data.configuration ?? {}}
+                  workspaceId={
+                    workspaceId
+                  }
+                  configuration={
+                    selectedNode.data
+                      .configuration ?? {}
+                  }
                   canEdit={canEdit}
-                  onChange={updateConfiguration}
+                  onChange={
+                    updateConfiguration
+                  }
+                />
+              )}
+
+              {actionType ===
+                "GITHUB_CREATE_ISSUE" && (
+                <GitHubActionConfiguration
+                  workspaceId={
+                    workspaceId
+                  }
+                  configuration={
+                    selectedNode.data
+                      .configuration ?? {}
+                  }
+                  canEdit={canEdit}
+                  onChange={
+                    updateConfiguration
+                  }
                 />
               )}
             </>

@@ -28,6 +28,10 @@ import {
   parseGmailTriggerConfiguration,
 } from "./gmail-trigger-configuration";
 import {
+  GitHubActionError,
+  parseGitHubActionConfiguration,
+} from "./github-action-configuration";
+import {
   GitHubTriggerError,
   parseGitHubTriggerConfiguration,
 } from "./github-trigger-configuration";
@@ -60,8 +64,8 @@ export type PublishValidationResult =
       message: string;
     };
 
-const supportedActionTypes =
-  new Set<string>([
+const supportedActionTypes: ReadonlySet<string> =
+  new Set([
     "NO_OP",
     "HTTP_REQUEST",
     "AI_PROMPT",
@@ -70,6 +74,7 @@ const supportedActionTypes =
     "GOOGLE_CALENDAR_CREATE_EVENT",
     "GOOGLE_SHEETS_APPEND_ROW",
     "GMAIL_SEND_EMAIL",
+    "GITHUB_CREATE_ISSUE",
   ]);
 
 export function validateWorkflowForPublish(
@@ -96,8 +101,7 @@ export function validateWorkflowForPublish(
   const { nodes, edges } = parsed.data;
 
   const trigger = nodes.find(
-    (node) =>
-      node.type === "trigger"
+    (node) => node.type === "trigger"
   );
 
   if (!trigger) {
@@ -171,8 +175,7 @@ export function validateWorkflowForPublish(
   }
 
   const actions = nodes.filter(
-    (node) =>
-      node.type === "action"
+    (node) => node.type === "action"
   );
 
   if (actions.length === 0) {
@@ -290,6 +293,15 @@ export function validateWorkflowForPublish(
           validationData
         );
       }
+
+      if (
+        actionType ===
+        "GITHUB_CREATE_ISSUE"
+      ) {
+        parseGitHubActionConfiguration(
+          validationData
+        );
+      }
     } catch (error) {
       if (
         error instanceof
@@ -305,7 +317,9 @@ export function validateWorkflowForPublish(
         error instanceof
           GoogleSheetsActionError ||
         error instanceof
-          GmailActionError
+          GmailActionError ||
+        error instanceof
+          GitHubActionError
       ) {
         return {
           valid: false,
