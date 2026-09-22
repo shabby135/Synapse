@@ -1,16 +1,12 @@
 "use client";
 
-import {
-  useState,
-} from "react";
+import { useState } from "react";
 import {
   AlertTriangle,
   Trash2,
 } from "lucide-react";
 
-import {
-  Button,
-} from "@/components/ui/button";
+import { Button } from "@/components/ui/button";
 import {
   Dialog,
   DialogContent,
@@ -19,9 +15,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import {
-  Input,
-} from "@/components/ui/input";
+import { Input } from "@/components/ui/input";
 import type {
   WorkflowCanvasEdge,
   WorkflowCanvasNode,
@@ -40,6 +34,9 @@ import {
 import {
   GoogleCalendarActionConfiguration,
 } from "./google-calendar-action-configuration";
+import {
+  GoogleCalendarTriggerConfiguration,
+} from "./google-calendar-trigger-configuration";
 import {
   GoogleSheetsActionConfiguration,
 } from "./google-sheets-action-configuration";
@@ -115,6 +112,12 @@ const triggerTypes = [
       "GOOGLE_SHEETS_NEW_ROW",
     label:
       "Google Sheets — New Row",
+  },
+  {
+    value:
+      "GOOGLE_CALENDAR_NEW_EVENT",
+    label:
+      "Google Calendar — New Event",
   },
 ] as const;
 
@@ -232,7 +235,8 @@ export function NodeConfigurationPanel({
     ) {
       updateData({
         configuration: {
-          actionType: nextActionType,
+          actionType:
+            nextActionType,
           integrationId: "",
           message:
             "Workflow completed:\n\n{{input}}",
@@ -340,6 +344,28 @@ export function NodeConfigurationPanel({
           spreadsheetId: "",
           range: "Sheet1!A:Z",
           hasHeader: true,
+          startMode: "FROM_NOW",
+          pollIntervalMinutes: 1,
+        },
+      });
+
+      return;
+    }
+
+    if (
+      nextTriggerType ===
+      "GOOGLE_CALENDAR_NEW_EVENT"
+    ) {
+      updateData({
+        label:
+          "Google Calendar New Event",
+        description:
+          "Starts when a new event is created in Google Calendar.",
+        configuration: {
+          triggerType:
+            "GOOGLE_CALENDAR_NEW_EVENT",
+          integrationId: "",
+          calendarId: "primary",
           startMode: "FROM_NOW",
           pollIntervalMinutes: 1,
         },
@@ -470,6 +496,24 @@ export function NodeConfigurationPanel({
               {triggerType ===
                 "GOOGLE_SHEETS_NEW_ROW" && (
                 <GoogleSheetsTriggerConfiguration
+                  workspaceId={
+                    workspaceId
+                  }
+                  configuration={
+                    selectedNode.data
+                      .configuration ??
+                    {}
+                  }
+                  canEdit={canEdit}
+                  onChange={
+                    updateConfiguration
+                  }
+                />
+              )}
+
+              {triggerType ===
+                "GOOGLE_CALENDAR_NEW_EVENT" && (
+                <GoogleCalendarTriggerConfiguration
                   workspaceId={
                     workspaceId
                   }

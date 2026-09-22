@@ -20,6 +20,10 @@ import {
   parseGoogleCalendarActionConfiguration,
 } from "./google-calendar-action-configuration";
 import {
+  GoogleCalendarTriggerError,
+  parseGoogleCalendarTriggerConfiguration,
+} from "./google-calendar-trigger-configuration";
+import {
   GoogleSheetsActionError,
   parseGoogleSheetsActionConfiguration,
 } from "./google-sheets-action-configuration";
@@ -102,16 +106,20 @@ export function validateWorkflowForPublish(
       ?.triggerType ?? "MANUAL";
 
   try {
-    if (
-      triggerType === "MANUAL"
-    ) {
-      // Manual triggers require no
-      // additional configuration.
+    if (triggerType === "MANUAL") {
+      // Manual triggers have no additional configuration.
     } else if (
       triggerType ===
       "GOOGLE_SHEETS_NEW_ROW"
     ) {
       parseGoogleSheetsTriggerConfiguration(
+        trigger.data
+      );
+    } else if (
+      triggerType ===
+      "GOOGLE_CALENDAR_NEW_EVENT"
+    ) {
+      parseGoogleCalendarTriggerConfiguration(
         trigger.data
       );
     } else {
@@ -124,7 +132,9 @@ export function validateWorkflowForPublish(
   } catch (error) {
     if (
       error instanceof
-      GoogleSheetsTriggerError
+        GoogleSheetsTriggerError ||
+      error instanceof
+        GoogleCalendarTriggerError
     ) {
       return {
         valid: false,
@@ -197,12 +207,10 @@ export function validateWorkflowForPublish(
     try {
       const validationData = {
         ...action.data,
-
         configuration:
           configurationForPublish(
             action.data
               .configuration ?? {},
-
             getAncestorNodeIds(
               action.id,
               edges
@@ -303,10 +311,7 @@ export function validateWorkflowForPublish(
   >();
 
   for (const node of nodes) {
-    adjacency.set(
-      node.id,
-      []
-    );
+    adjacency.set(node.id, []);
   }
 
   for (const edge of edges) {
@@ -321,8 +326,7 @@ export function validateWorkflowForPublish(
   const queue = [trigger.id];
 
   while (queue.length > 0) {
-    const nodeId =
-      queue.shift();
+    const nodeId = queue.shift();
 
     if (
       !nodeId ||

@@ -16,6 +16,7 @@ export type IntegrationTriggerPollResult = {
 export type IntegrationTriggerPollOptions = {
   workflowId: string;
   nodeId: string;
+  activatedAt: Date;
   configuration: Record<
     string,
     unknown
@@ -57,7 +58,8 @@ export function getIntegrationTriggerHandler(
   triggerType: string
 ): IntegrationTriggerHandler | null {
   return (
-    handlers.get(triggerType) ?? null
+    handlers.get(triggerType) ??
+    null
   );
 }
 

@@ -14,15 +14,18 @@ import {
   registerIntegrationTriggerHandler,
 } from "@/features/workflow/integration-trigger-registry";
 import {
-  googleSheetsTriggerHandler,
-} from "@/features/workflow/poll-google-sheets-trigger";
-import {
   createPayloadHash,
   failureRetryDate,
   nextPollDate,
   stableConfigurationHash,
   TRIGGER_LEASE_MS,
 } from "@/features/workflow/integration-trigger-runtime";
+import {
+  googleCalendarTriggerHandler,
+} from "@/features/workflow/poll-google-calendar-trigger";
+import {
+  googleSheetsTriggerHandler,
+} from "@/features/workflow/poll-google-sheets-trigger";
 import {
   DuplicateIntegrationTriggerEventError,
   queueWorkflowRun,
@@ -40,6 +43,7 @@ import {
 import { inngest } from "../client";
 
 const MAX_TRIGGERS_PER_TICK = 50;
+
 if (
   !getIntegrationTriggerHandler(
     googleSheetsTriggerHandler.type
@@ -50,12 +54,23 @@ if (
   );
 }
 
+if (
+  !getIntegrationTriggerHandler(
+    googleCalendarTriggerHandler.type
+  )
+) {
+  registerIntegrationTriggerHandler(
+    googleCalendarTriggerHandler
+  );
+}
+
 async function synchronizePublishedTriggers() {
   const rows = await db
     .select({
       workflowId: workflow.id,
       versionId: workflowVersion.id,
-      version: workflowVersion.version,
+      version:
+        workflowVersion.version,
       definition:
         workflowVersion.definition,
     })
@@ -194,7 +209,8 @@ async function synchronizePublishedTriggers() {
         )
         .values({
           id: crypto.randomUUID(),
-          workflowId: row.workflowId,
+          workflowId:
+            row.workflowId,
           workflowVersionId:
             row.versionId,
           nodeId: trigger.id,
@@ -363,6 +379,8 @@ export const pollIntegrationTriggers =
                   .select({
                     definition:
                       workflowVersion.definition,
+                    activatedAt:
+                      workflowVersion.updatedAt,
                   })
                   .from(
                     workflowVersion
@@ -425,6 +443,8 @@ export const pollIntegrationTriggers =
                     claimed.workflowId,
                   nodeId:
                     claimed.nodeId,
+                  activatedAt:
+                    version.activatedAt,
                   configuration:
                     node.data
                       .configuration ??
@@ -438,23 +458,26 @@ export const pollIntegrationTriggers =
                 result.events
               ) {
                 try {
-                  await queueWorkflowRun({
-                    workflowId:
-                      claimed.workflowId,
-                    triggerType:
-                      "INTEGRATION",
-                    input: event.input,
-                    integrationEvent: {
-                      triggerId:
-                        claimed.id,
-                      eventKey:
-                        event.key,
-                      payloadHash:
-                        createPayloadHash(
-                          event.input
-                        ),
-                    },
-                  });
+                  await queueWorkflowRun(
+                    {
+                      workflowId:
+                        claimed.workflowId,
+                      triggerType:
+                        "INTEGRATION",
+                      input:
+                        event.input,
+                      integrationEvent: {
+                        triggerId:
+                          claimed.id,
+                        eventKey:
+                          event.key,
+                        payloadHash:
+                          createPayloadHash(
+                            event.input
+                          ),
+                      },
+                    }
+                  );
                 } catch (error) {
                   if (
                     !(
