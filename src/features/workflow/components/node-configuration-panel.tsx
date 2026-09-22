@@ -44,6 +44,9 @@ import {
   GoogleSheetsActionConfiguration,
 } from "./google-sheets-action-configuration";
 import {
+  GoogleSheetsTriggerConfiguration,
+} from "./google-sheets-trigger-configuration";
+import {
   HttpActionConfiguration,
 } from "./http-action-configuration";
 import {
@@ -102,6 +105,19 @@ const actionTypes = [
   },
 ] as const;
 
+const triggerTypes = [
+  {
+    value: "MANUAL",
+    label: "Manual trigger",
+  },
+  {
+    value:
+      "GOOGLE_SHEETS_NEW_ROW",
+    label:
+      "Google Sheets — New Row",
+  },
+] as const;
+
 export function NodeConfigurationPanel({
   workspaceId,
   nodes,
@@ -135,6 +151,14 @@ export function NodeConfigurationPanel({
       ? selectedNode.data
           .configuration.actionType
       : "NO_OP";
+
+  const triggerType =
+    typeof selectedNode.data
+      .configuration?.triggerType ===
+    "string"
+      ? selectedNode.data
+          .configuration.triggerType
+      : "MANUAL";
 
   function updateData(
     changes: Partial<WorkflowNodeData>
@@ -297,6 +321,43 @@ export function NodeConfigurationPanel({
     });
   }
 
+  function changeTriggerType(
+    nextTriggerType: string
+  ) {
+    if (
+      nextTriggerType ===
+      "GOOGLE_SHEETS_NEW_ROW"
+    ) {
+      updateData({
+        label:
+          "Google Sheets New Row",
+        description:
+          "Starts when a new row is detected in Google Sheets.",
+        configuration: {
+          triggerType:
+            "GOOGLE_SHEETS_NEW_ROW",
+          integrationId: "",
+          spreadsheetId: "",
+          range: "Sheet1!A:Z",
+          hasHeader: true,
+          startMode: "FROM_NOW",
+          pollIntervalMinutes: 1,
+        },
+      });
+
+      return;
+    }
+
+    updateData({
+      label: "Manual Trigger",
+      description:
+        "Starts when the workflow is run manually.",
+      configuration: {
+        triggerType: "MANUAL",
+      },
+    });
+  }
+
   function confirmDelete() {
     onDelete(selectedNode.id);
     setDeleteDialogOpen(false);
@@ -369,15 +430,61 @@ export function NodeConfigurationPanel({
 
           {selectedNode.type ===
           "trigger" ? (
-            <div className="space-y-2">
-              <p className="text-sm font-medium">
-                Trigger type
-              </p>
+            <>
+              <div className="space-y-2">
+                <label
+                  htmlFor="trigger-type"
+                  className="text-sm font-medium"
+                >
+                  Trigger type
+                </label>
 
-              <div className="rounded-md border bg-muted/40 px-3 py-2 text-sm">
-                Manual trigger
+                <select
+                  id="trigger-type"
+                  value={triggerType}
+                  disabled={!canEdit}
+                  onChange={(event) =>
+                    changeTriggerType(
+                      event.target.value
+                    )
+                  }
+                  className="h-9 w-full rounded-md border bg-background px-3 text-sm outline-none focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/50 disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  {triggerTypes.map(
+                    (trigger) => (
+                      <option
+                        key={
+                          trigger.value
+                        }
+                        value={
+                          trigger.value
+                        }
+                      >
+                        {trigger.label}
+                      </option>
+                    )
+                  )}
+                </select>
               </div>
-            </div>
+
+              {triggerType ===
+                "GOOGLE_SHEETS_NEW_ROW" && (
+                <GoogleSheetsTriggerConfiguration
+                  workspaceId={
+                    workspaceId
+                  }
+                  configuration={
+                    selectedNode.data
+                      .configuration ??
+                    {}
+                  }
+                  canEdit={canEdit}
+                  onChange={
+                    updateConfiguration
+                  }
+                />
+              )}
+            </>
           ) : (
             <>
               <div className="space-y-2">

@@ -70,8 +70,14 @@ function getRunTriggerLabel(
     case "SCHEDULE":
       return "Scheduled run";
 
-    default:
+    case "INTEGRATION":
+      return "Integration run";
+
+    case "MANUAL":
       return "Manual run";
+
+    default:
+      return "Workflow run";
   }
 }
 
@@ -377,10 +383,10 @@ export function WorkflowDetails({
           </div>
 
           <CardDescription>
-            Recent manual, webhook, and
-            scheduled executions of this
-            workflow.
-          </CardDescription>
+  Recent manual, webhook,
+  scheduled, and integration
+  executions of this workflow.
+</CardDescription>
         </CardHeader>
 
         <CardContent className="space-y-3">

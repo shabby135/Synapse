@@ -11,7 +11,11 @@ import {
 
 import {
   getIntegrationTriggerHandler,
+  registerIntegrationTriggerHandler,
 } from "@/features/workflow/integration-trigger-registry";
+import {
+  googleSheetsTriggerHandler,
+} from "@/features/workflow/poll-google-sheets-trigger";
 import {
   createPayloadHash,
   failureRetryDate,
@@ -36,6 +40,15 @@ import {
 import { inngest } from "../client";
 
 const MAX_TRIGGERS_PER_TICK = 50;
+if (
+  !getIntegrationTriggerHandler(
+    googleSheetsTriggerHandler.type
+  )
+) {
+  registerIntegrationTriggerHandler(
+    googleSheetsTriggerHandler
+  );
+}
 
 async function synchronizePublishedTriggers() {
   const rows = await db

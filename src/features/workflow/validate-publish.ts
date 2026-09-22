@@ -24,6 +24,10 @@ import {
   parseGoogleSheetsActionConfiguration,
 } from "./google-sheets-action-configuration";
 import {
+  GoogleSheetsTriggerError,
+  parseGoogleSheetsTriggerConfiguration,
+} from "./google-sheets-trigger-configuration";
+import {
   HttpActionError,
   parseHttpActionConfiguration,
 } from "./http-request-configuration";
@@ -93,6 +97,49 @@ export function validateWorkflowForPublish(
     };
   }
 
+  const triggerType =
+    trigger.data.configuration
+      ?.triggerType ?? "MANUAL";
+
+  try {
+    if (
+      triggerType === "MANUAL"
+    ) {
+      // Manual triggers require no
+      // additional configuration.
+    } else if (
+      triggerType ===
+      "GOOGLE_SHEETS_NEW_ROW"
+    ) {
+      parseGoogleSheetsTriggerConfiguration(
+        trigger.data
+      );
+    } else {
+      return {
+        valid: false,
+        message:
+          `${trigger.data.label} uses a trigger type that is not implemented yet.`,
+      };
+    }
+  } catch (error) {
+    if (
+      error instanceof
+      GoogleSheetsTriggerError
+    ) {
+      return {
+        valid: false,
+        message:
+          `${trigger.data.label}: ${error.message}`,
+      };
+    }
+
+    return {
+      valid: false,
+      message:
+        `${trigger.data.label} has invalid configuration.`,
+    };
+  }
+
   const actions = nodes.filter(
     (node) =>
       node.type === "action"
@@ -150,10 +197,12 @@ export function validateWorkflowForPublish(
     try {
       const validationData = {
         ...action.data,
+
         configuration:
           configurationForPublish(
             action.data
               .configuration ?? {},
+
             getAncestorNodeIds(
               action.id,
               edges
@@ -254,7 +303,10 @@ export function validateWorkflowForPublish(
   >();
 
   for (const node of nodes) {
-    adjacency.set(node.id, []);
+    adjacency.set(
+      node.id,
+      []
+    );
   }
 
   for (const edge of edges) {
@@ -265,10 +317,12 @@ export function validateWorkflowForPublish(
 
   const reachable =
     new Set<string>();
+
   const queue = [trigger.id];
 
   while (queue.length > 0) {
-    const nodeId = queue.shift();
+    const nodeId =
+      queue.shift();
 
     if (
       !nodeId ||
@@ -303,6 +357,7 @@ export function validateWorkflowForPublish(
 
   const visiting =
     new Set<string>();
+
   const visited =
     new Set<string>();
 
