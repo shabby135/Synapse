@@ -20,8 +20,52 @@ import {
 import type {
   IntegrationProvider,
 } from "./provider-registry";
+import {
+  classifyTrelloStatus,
+  createTrelloConnectionRequest,
+  parseTrelloMember,
+} from "./trello-connection";
 
 const TEST_TIMEOUT_MS = 15_000;
+const MAX_TRELLO_RESPONSE_BYTES =
+  64_000;
+
+async function readBoundedBody(
+  response: Response,
+  maximumBytes: number
+): Promise<string | null> {
+  if (!response.body) return "";
+
+  const reader = response.body.getReader();
+  const decoder = new TextDecoder();
+  let bytes = 0;
+  let result = "";
+
+  try {
+    while (true) {
+      const chunk = await reader.read();
+
+      if (chunk.done) break;
+
+      bytes += chunk.value.byteLength;
+
+      if (bytes > maximumBytes) {
+        return null;
+      }
+
+      result += decoder.decode(
+        chunk.value,
+        { stream: true }
+      );
+    }
+
+    return result + decoder.decode();
+  } finally {
+    await reader
+      .cancel()
+      .catch(() => undefined);
+  }
+}
 
 function apiKeyTester(
   provider: ApiKeyProvider
@@ -199,6 +243,112 @@ function webhookTester(
   );
 }
 
+const trelloTester =
+  defineConnectionTester(
+    "TRELLO",
+    async ({
+      credentials,
+      signal,
+    }) => {
+      const apiKey = credentials.apiKey;
+      const apiToken =
+        credentials.apiToken;
+
+      if (!apiKey || !apiToken) {
+        return {
+          status:
+            "INVALID_CREDENTIALS",
+          message:
+            "Trello API key and token are required.",
+        };
+      }
+
+      const request =
+        createTrelloConnectionRequest({
+          apiKey,
+          apiToken,
+          signal,
+        });
+      let response: Response;
+
+      try {
+        response = await fetch(
+          request.url,
+          request.init
+        );
+      } catch (error) {
+        if (
+          error instanceof Error &&
+          (error.name ===
+            "AbortError" ||
+            error.name ===
+              "TimeoutError")
+        ) {
+          return {
+            status:
+              "PROVIDER_UNAVAILABLE",
+            message:
+              "Trello connection test timed out.",
+          };
+        }
+
+        return {
+          status:
+            "PROVIDER_UNAVAILABLE",
+          message:
+            "Trello could not be reached.",
+        };
+      }
+
+      const body = await readBoundedBody(
+        response,
+        MAX_TRELLO_RESPONSE_BYTES
+      );
+
+      if (body === null) {
+        return {
+          status:
+            "PROVIDER_UNAVAILABLE",
+          message:
+            "Trello returned an unexpectedly large response.",
+        };
+      }
+
+      if (!response.ok) {
+        return classifyTrelloStatus(
+          response.status
+        );
+      }
+
+      try {
+        const member =
+          parseTrelloMember(body);
+
+        return {
+          status: "CONNECTED",
+          externalAccountId: member.id,
+          externalAccountName:
+            member.fullName
+              ? `${member.fullName} (@${member.username})`
+              : `@${member.username}`,
+          metadata: {
+            username: member.username,
+            fullName: member.fullName,
+          },
+        };
+      } catch (error) {
+        return {
+          status:
+            "PROVIDER_UNAVAILABLE",
+          message:
+            error instanceof Error
+              ? error.message
+              : "Trello returned an invalid response.",
+        };
+      }
+    }
+  );
+
 const testers = {
   ...Object.fromEntries(
     apiKeyProviderValues.map(
@@ -210,6 +360,7 @@ const testers = {
   ),
   SLACK: webhookTester("SLACK"),
   DISCORD: webhookTester("DISCORD"),
+  TRELLO: trelloTester,
 } as Partial<
   Record<
     IntegrationProvider,

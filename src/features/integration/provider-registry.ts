@@ -14,6 +14,7 @@ export const integrationProviderValues = [
   "GOOGLE_CALENDAR",
   "AIRTABLE",
   "GITHUB",
+  "TRELLO",
   "STRIPE",
   "RESEND",
   "CUSTOM_API",
@@ -57,6 +58,8 @@ export type IntegrationCapability =
   | "CREATE_RECORD"
   | "ISSUE_TRIGGER"
   | "CREATE_ISSUE"
+  | "CARD_TRIGGER"
+  | "CREATE_CARD"
   | "PAYMENT_TRIGGER"
   | "CUSTOM_HTTP";
 
@@ -218,6 +221,17 @@ export const integrationProviderRegistry = {
     capabilities: [
       "ISSUE_TRIGGER",
       "CREATE_ISSUE",
+    ],
+    availability: "ACTIVE",
+  },
+  TRELLO: {
+    provider: "TRELLO",
+    label: "Trello",
+    category: "PRODUCTIVITY",
+    authStrategy: "API_KEY",
+    capabilities: [
+      "CARD_TRIGGER",
+      "CREATE_CARD",
     ],
     availability: "ACTIVE",
   },

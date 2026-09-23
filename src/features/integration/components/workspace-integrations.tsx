@@ -116,6 +116,20 @@ function credentialPlaceholder(
   provider: IntegrationProvider,
   key: string
 ): string {
+  if (
+    provider === "TRELLO" &&
+    key === "apiKey"
+  ) {
+    return "Enter your Trello API key";
+  }
+
+  if (
+    provider === "TRELLO" &&
+    key === "apiToken"
+  ) {
+    return "Enter your Trello API token";
+  }
+
   if (key === "apiKey") {
     return `Enter your ${
       getIntegrationProvider(provider)
@@ -855,6 +869,26 @@ export function WorkspaceIntegrations({
                   />
                 </div>
               )
+            )}
+
+            {provider === "TRELLO" &&
+              !usesOAuth && (
+              <p className="rounded-md border bg-muted/40 p-3 text-sm text-muted-foreground">
+                Create a Trello Power-Up,
+                then copy its API key and
+                generate a user token from{" "}
+                <a
+                  href="https://trello.com/apps/admin"
+                  target="_blank"
+                  rel="noreferrer"
+                  className="font-medium text-foreground underline underline-offset-4"
+                >
+                  Trello app administration
+                </a>
+                . The token needs read and
+                write access for upcoming
+                card workflows.
+              </p>
             )}
 
             {usesOAuth && (

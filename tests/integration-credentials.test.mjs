@@ -111,6 +111,59 @@ test("requires the provider credential fields and secure URLs", () => {
       ),
     /must use HTTPS/
   );
+
+  assert.throws(
+    () =>
+      validateProviderCredentials(
+        "TRELLO",
+        {
+          apiKey:
+            "1234567890abcdef1234567890abcdef",
+        }
+      ),
+    /API token is required/
+  );
+
+  assert.throws(
+    () =>
+      validateProviderCredentials(
+        "TRELLO",
+        {
+          apiKey: "invalid key",
+          apiToken:
+            "1234567890abcdef1234567890abcdef",
+        }
+      ),
+    /valid Trello API key/
+  );
+});
+
+test("masks Trello API keys and tokens", () => {
+  assert.deepEqual(
+    createCredentialPreview(
+      "TRELLO",
+      {
+        apiKey:
+          "1234567890abcdef1234567890abcdef",
+        apiToken:
+          "abcdef1234567890abcdef1234567890",
+      }
+    ),
+    [
+      {
+        key: "apiKey",
+        label: "API key",
+        configured: true,
+        displayValue: "••••cdef",
+      },
+      {
+        key: "apiToken",
+        label: "API token",
+        configured: true,
+        displayValue: "••••7890",
+      },
+    ]
+  );
 });
 
 test("masks secrets while retaining non-secret configuration", () => {

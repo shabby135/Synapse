@@ -93,6 +93,22 @@ export const providerCredentialFields = {
       format: "TEXT",
     },
   ],
+  TRELLO: [
+    {
+      key: "apiKey",
+      label: "API key",
+      required: true,
+      secret: true,
+      format: "TEXT",
+    },
+    {
+      key: "apiToken",
+      label: "API token",
+      required: true,
+      secret: true,
+      format: "TEXT",
+    },
+  ],
   STRIPE: [
     {
       key: "secretKey",
@@ -215,6 +231,31 @@ function validateWebhookUrl(
   }
 }
 
+function validateTrelloCredential(
+  provider: IntegrationProvider,
+  key: string,
+  value: string
+) {
+  if (provider !== "TRELLO") {
+    return;
+  }
+
+  const maximumLength =
+    key === "apiKey" ? 128 : 512;
+
+  if (
+    value.length < 16 ||
+    value.length > maximumLength ||
+    !/^[A-Za-z0-9_-]+$/u.test(value)
+  ) {
+    throw new IntegrationCredentialError(
+      key === "apiKey"
+        ? "Enter a valid Trello API key."
+        : "Enter a valid Trello API token."
+    );
+  }
+}
+
 export function validateProviderCredentials(
   provider: IntegrationProvider,
   credentials: IntegrationCredentials
@@ -270,6 +311,14 @@ export function validateProviderCredentials(
           value
         );
       }
+    }
+
+    if (value) {
+      validateTrelloCredential(
+        provider,
+        definition.key,
+        value
+      );
     }
   }
 

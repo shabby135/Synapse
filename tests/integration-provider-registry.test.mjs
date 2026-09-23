@@ -11,7 +11,7 @@ import {
 test("registers every planned Synapse provider exactly once", () => {
   assert.equal(
     integrationProviderValues.length,
-    18
+    19
   );
 
   assert.deepEqual(
@@ -104,6 +104,34 @@ test("activates the four OAuth providers", () => {
       "ACTIVE"
     );
   }
+});
+
+test("activates Trello card capabilities", () => {
+  const definition =
+    getIntegrationProvider("TRELLO");
+
+  assert.equal(
+    definition.authStrategy,
+    "API_KEY"
+  );
+  assert.equal(
+    definition.availability,
+    "ACTIVE"
+  );
+  assert.equal(
+    providerSupportsCapability(
+      "TRELLO",
+      "CARD_TRIGGER"
+    ),
+    true
+  );
+  assert.equal(
+    providerSupportsCapability(
+      "TRELLO",
+      "CREATE_CARD"
+    ),
+    true
+  );
 });
 
 test("describes the shared provider capabilities used by future nodes", () => {
