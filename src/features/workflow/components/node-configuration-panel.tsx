@@ -58,6 +58,9 @@ import {
 import {
   MessagingActionConfiguration,
 } from "./messaging-action-configuration";
+import {
+  TrelloTriggerConfiguration,
+} from "./trello-trigger-configuration";
 
 type NodeConfigurationPanelProps = {
   workspaceId: string;
@@ -135,6 +138,10 @@ const triggerTypes = [
   {
     value: "GITHUB_NEW_ISSUE",
     label: "GitHub — New Issue",
+  },
+  {
+    value: "TRELLO_NEW_CARD",
+    label: "Trello — New Card",
   },
 ] as const;
 
@@ -277,8 +284,7 @@ export function NodeConfigurationPanel({
           location: "",
           startDateTime: "",
           endDateTime: "",
-          timeZone:
-            "Asia/Kolkata",
+          timeZone: "Asia/Kolkata",
           attendees: "",
           sendUpdates: false,
         },
@@ -446,6 +452,28 @@ export function NodeConfigurationPanel({
           integrationId: "",
           repository: "",
           labels: "",
+          startMode: "FROM_NOW",
+          pollIntervalMinutes: 1,
+        },
+      });
+
+      return;
+    }
+
+    if (
+      nextTriggerType ===
+      "TRELLO_NEW_CARD"
+    ) {
+      updateData({
+        label: "Trello New Card",
+        description:
+          "Starts when a new card is created on a Trello board.",
+        configuration: {
+          triggerType:
+            "TRELLO_NEW_CARD",
+          integrationId: "",
+          boardId: "",
+          listId: "",
           startMode: "FROM_NOW",
           pollIntervalMinutes: 1,
         },
@@ -628,6 +656,21 @@ export function NodeConfigurationPanel({
                   }
                 />
               )}
+
+              {triggerType ===
+                "TRELLO_NEW_CARD" && (
+                <TrelloTriggerConfiguration
+                  workspaceId={workspaceId}
+                  configuration={
+                    selectedNode.data
+                      .configuration ?? {}
+                  }
+                  canEdit={canEdit}
+                  onChange={
+                    updateConfiguration
+                  }
+                />
+              )}
             </>
           ) : (
             <>
@@ -677,8 +720,7 @@ export function NodeConfigurationPanel({
                 <HttpActionConfiguration
                   configuration={
                     selectedNode.data
-                      .configuration ??
-                    {}
+                      .configuration ?? {}
                   }
                   canEdit={canEdit}
                   onChange={
@@ -692,8 +734,7 @@ export function NodeConfigurationPanel({
                 <AiActionConfiguration
                   configuration={
                     selectedNode.data
-                      .configuration ??
-                    {}
+                      .configuration ?? {}
                   }
                   canEdit={canEdit}
                   onChange={
@@ -705,14 +746,11 @@ export function NodeConfigurationPanel({
               {actionType ===
                 "SLACK_MESSAGE" && (
                 <MessagingActionConfiguration
-                  workspaceId={
-                    workspaceId
-                  }
+                  workspaceId={workspaceId}
                   provider="SLACK"
                   configuration={
                     selectedNode.data
-                      .configuration ??
-                    {}
+                      .configuration ?? {}
                   }
                   canEdit={canEdit}
                   onChange={
@@ -724,14 +762,11 @@ export function NodeConfigurationPanel({
               {actionType ===
                 "DISCORD_MESSAGE" && (
                 <MessagingActionConfiguration
-                  workspaceId={
-                    workspaceId
-                  }
+                  workspaceId={workspaceId}
                   provider="DISCORD"
                   configuration={
                     selectedNode.data
-                      .configuration ??
-                    {}
+                      .configuration ?? {}
                   }
                   canEdit={canEdit}
                   onChange={
@@ -743,13 +778,10 @@ export function NodeConfigurationPanel({
               {actionType ===
                 "GOOGLE_CALENDAR_CREATE_EVENT" && (
                 <GoogleCalendarActionConfiguration
-                  workspaceId={
-                    workspaceId
-                  }
+                  workspaceId={workspaceId}
                   configuration={
                     selectedNode.data
-                      .configuration ??
-                    {}
+                      .configuration ?? {}
                   }
                   canEdit={canEdit}
                   onChange={
@@ -761,9 +793,7 @@ export function NodeConfigurationPanel({
               {actionType ===
                 "GOOGLE_SHEETS_APPEND_ROW" && (
                 <GoogleSheetsActionConfiguration
-                  workspaceId={
-                    workspaceId
-                  }
+                  workspaceId={workspaceId}
                   configuration={
                     selectedNode.data
                       .configuration ?? {}
@@ -778,9 +808,7 @@ export function NodeConfigurationPanel({
               {actionType ===
                 "GMAIL_SEND_EMAIL" && (
                 <GmailActionConfiguration
-                  workspaceId={
-                    workspaceId
-                  }
+                  workspaceId={workspaceId}
                   configuration={
                     selectedNode.data
                       .configuration ?? {}
@@ -795,9 +823,7 @@ export function NodeConfigurationPanel({
               {actionType ===
                 "GITHUB_CREATE_ISSUE" && (
                 <GitHubActionConfiguration
-                  workspaceId={
-                    workspaceId
-                  }
+                  workspaceId={workspaceId}
                   configuration={
                     selectedNode.data
                       .configuration ?? {}

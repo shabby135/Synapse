@@ -52,6 +52,10 @@ import {
   parseMessagingActionConfiguration,
 } from "./messaging-action-configuration";
 import {
+  parseTrelloTriggerConfiguration,
+  TrelloTriggerError,
+} from "./trello-trigger-configuration";
+import {
   saveWorkflowDefinitionSchema,
 } from "./validator";
 
@@ -101,7 +105,8 @@ export function validateWorkflowForPublish(
   const { nodes, edges } = parsed.data;
 
   const trigger = nodes.find(
-    (node) => node.type === "trigger"
+    (node) =>
+      node.type === "trigger"
   );
 
   if (!trigger) {
@@ -147,6 +152,13 @@ export function validateWorkflowForPublish(
       parseGitHubTriggerConfiguration(
         trigger.data
       );
+    } else if (
+      triggerType ===
+      "TRELLO_NEW_CARD"
+    ) {
+      parseTrelloTriggerConfiguration(
+        trigger.data
+      );
     } else {
       return {
         valid: false,
@@ -160,7 +172,8 @@ export function validateWorkflowForPublish(
       error instanceof
         GoogleCalendarTriggerError ||
       error instanceof GmailTriggerError ||
-      error instanceof GitHubTriggerError
+      error instanceof GitHubTriggerError ||
+      error instanceof TrelloTriggerError
     ) {
       return {
         valid: false,
@@ -175,7 +188,8 @@ export function validateWorkflowForPublish(
   }
 
   const actions = nodes.filter(
-    (node) => node.type === "action"
+    (node) =>
+      node.type === "action"
   );
 
   if (actions.length === 0) {
