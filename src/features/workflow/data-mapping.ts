@@ -424,7 +424,16 @@ function transformConfiguration(
                         "memberIds",
                         "labelIds",
                       ]
-                    : [];
+                    : type ===
+                        "JIRA_CREATE_ISSUE"
+                      ? [
+                          "summary",
+                          "description",
+                          "labels",
+                          "priorityId",
+                          "assigneeAccountId",
+                        ]
+                      : [];
 
   let visited = 0;
 
@@ -695,6 +704,19 @@ export function configurationForPublish(
 
           if (field === "due") {
             return "2026-01-01T10:00:00Z";
+          }
+
+          if (
+            field === "priorityId"
+          ) {
+            return "3";
+          }
+
+          if (
+            field ===
+            "assigneeAccountId"
+          ) {
+            return "712020:00000000-0000-0000-0000-000000000000";
           }
 
           if (

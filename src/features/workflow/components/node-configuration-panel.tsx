@@ -56,6 +56,9 @@ import {
   HttpActionConfiguration,
 } from "./http-action-configuration";
 import {
+  JiraActionConfiguration,
+} from "./jira-action-configuration";
+import {
   JiraTriggerConfiguration,
 } from "./jira-trigger-configuration";
 import {
@@ -119,6 +122,10 @@ const actionTypes = [
   {
     value: "GITHUB_CREATE_ISSUE",
     label: "GitHub — Create Issue",
+  },
+  {
+    value: "JIRA_CREATE_ISSUE",
+    label: "Jira — Create Issue",
   },
   {
     value: "TRELLO_CREATE_CARD",
@@ -370,6 +377,30 @@ export function NodeConfigurationPanel({
             "Created automatically by Synapse.\n\n{{input}}",
           labels: "",
           assignees: "",
+        },
+      });
+
+      return;
+    }
+
+    if (
+      nextActionType ===
+      "JIRA_CREATE_ISSUE"
+    ) {
+      updateData({
+        configuration: {
+          actionType:
+            "JIRA_CREATE_ISSUE",
+          integrationId: "",
+          projectKey: "",
+          issueTypeId: "",
+          summary:
+            "Issue from Synapse workflow",
+          description:
+            "Created automatically by Synapse.\n\n{{input}}",
+          labels: "",
+          priorityId: "",
+          assigneeAccountId: "",
         },
       });
 
@@ -903,6 +934,21 @@ export function NodeConfigurationPanel({
               {actionType ===
                 "GITHUB_CREATE_ISSUE" && (
                 <GitHubActionConfiguration
+                  workspaceId={workspaceId}
+                  configuration={
+                    selectedNode.data
+                      .configuration ?? {}
+                  }
+                  canEdit={canEdit}
+                  onChange={
+                    updateConfiguration
+                  }
+                />
+              )}
+
+              {actionType ===
+                "JIRA_CREATE_ISSUE" && (
+                <JiraActionConfiguration
                   workspaceId={workspaceId}
                   configuration={
                     selectedNode.data

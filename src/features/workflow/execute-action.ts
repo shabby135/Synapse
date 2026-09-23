@@ -22,6 +22,9 @@ import {
   executeHttpRequest,
 } from "./execute-http-request";
 import {
+  executeJiraAction,
+} from "./execute-jira-action";
+import {
   executeMessagingAction,
 } from "./execute-messaging-action";
 import {
@@ -162,6 +165,14 @@ export async function executeAction({
 
     case "TRELLO_CREATE_CARD":
       return executeTrelloAction({
+        runId,
+        workflowId,
+        nodeId,
+        data,
+      });
+
+    case "JIRA_CREATE_ISSUE":
+      return executeJiraAction({
         runId,
         workflowId,
         nodeId,

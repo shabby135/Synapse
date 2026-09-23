@@ -48,6 +48,10 @@ import {
   parseHttpActionConfiguration,
 } from "./http-request-configuration";
 import {
+  JiraActionError,
+  parseJiraActionConfiguration,
+} from "./jira-action-configuration";
+import {
   JiraTriggerError,
   parseJiraTriggerConfiguration,
 } from "./jira-trigger-configuration";
@@ -88,6 +92,7 @@ const supportedActionTypes: ReadonlySet<string> =
     "GMAIL_SEND_EMAIL",
     "GITHUB_CREATE_ISSUE",
     "TRELLO_CREATE_CARD",
+    "JIRA_CREATE_ISSUE",
   ]);
 
 export function validateWorkflowForPublish(
@@ -346,6 +351,15 @@ export function validateWorkflowForPublish(
           validationData
         );
       }
+
+      if (
+        actionType ===
+        "JIRA_CREATE_ISSUE"
+      ) {
+        parseJiraActionConfiguration(
+          validationData
+        );
+      }
     } catch (error) {
       if (
         error instanceof
@@ -365,7 +379,9 @@ export function validateWorkflowForPublish(
         error instanceof
           GitHubActionError ||
         error instanceof
-          TrelloActionError
+          TrelloActionError ||
+        error instanceof
+          JiraActionError
       ) {
         return {
           valid: false,
