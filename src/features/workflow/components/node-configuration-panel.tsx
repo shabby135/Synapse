@@ -29,12 +29,6 @@ import {
   DataMappingPanel,
 } from "./data-mapping-panel";
 import {
-  GoogleCalendarActionConfiguration,
-} from "./google-calendar-action-configuration";
-import {
-  GoogleCalendarTriggerConfiguration,
-} from "./google-calendar-trigger-configuration";
-import {
   GmailActionConfiguration,
 } from "./gmail-action-configuration";
 import {
@@ -47,6 +41,12 @@ import {
   GitHubTriggerConfiguration,
 } from "./github-trigger-configuration";
 import {
+  GoogleCalendarActionConfiguration,
+} from "./google-calendar-action-configuration";
+import {
+  GoogleCalendarTriggerConfiguration,
+} from "./google-calendar-trigger-configuration";
+import {
   GoogleSheetsActionConfiguration,
 } from "./google-sheets-action-configuration";
 import {
@@ -55,6 +55,9 @@ import {
 import {
   HttpActionConfiguration,
 } from "./http-action-configuration";
+import {
+  JiraTriggerConfiguration,
+} from "./jira-trigger-configuration";
 import {
   MessagingActionConfiguration,
 } from "./messaging-action-configuration";
@@ -145,6 +148,10 @@ const triggerTypes = [
   {
     value: "GITHUB_NEW_ISSUE",
     label: "GitHub — New Issue",
+  },
+  {
+    value: "JIRA_NEW_ISSUE",
+    label: "Jira — New Issue",
   },
   {
     value: "TRELLO_NEW_CARD",
@@ -495,6 +502,27 @@ export function NodeConfigurationPanel({
 
     if (
       nextTriggerType ===
+      "JIRA_NEW_ISSUE"
+    ) {
+      updateData({
+        label: "Jira New Issue",
+        description:
+          "Starts when a new issue is created in a Jira project.",
+        configuration: {
+          triggerType:
+            "JIRA_NEW_ISSUE",
+          integrationId: "",
+          projectKey: "",
+          startMode: "FROM_NOW",
+          pollIntervalMinutes: 1,
+        },
+      });
+
+      return;
+    }
+
+    if (
+      nextTriggerType ===
       "TRELLO_NEW_CARD"
     ) {
       updateData({
@@ -691,6 +719,21 @@ export function NodeConfigurationPanel({
               )}
 
               {triggerType ===
+                "JIRA_NEW_ISSUE" && (
+                <JiraTriggerConfiguration
+                  workspaceId={workspaceId}
+                  configuration={
+                    selectedNode.data
+                      .configuration ?? {}
+                  }
+                  canEdit={canEdit}
+                  onChange={
+                    updateConfiguration
+                  }
+                />
+              )}
+
+              {triggerType ===
                 "TRELLO_NEW_CARD" && (
                 <TrelloTriggerConfiguration
                   workspaceId={workspaceId}
@@ -730,9 +773,7 @@ export function NodeConfigurationPanel({
                     (action) => (
                       <option
                         key={action.value}
-                        value={
-                          action.value
-                        }
+                        value={action.value}
                       >
                         {action.label}
                       </option>
@@ -753,8 +794,7 @@ export function NodeConfigurationPanel({
                 <HttpActionConfiguration
                   configuration={
                     selectedNode.data
-                      .configuration ??
-                    {}
+                      .configuration ?? {}
                   }
                   canEdit={canEdit}
                   onChange={
@@ -768,8 +808,7 @@ export function NodeConfigurationPanel({
                 <AiActionConfiguration
                   configuration={
                     selectedNode.data
-                      .configuration ??
-                    {}
+                      .configuration ?? {}
                   }
                   canEdit={canEdit}
                   onChange={
@@ -787,8 +826,7 @@ export function NodeConfigurationPanel({
                   provider="SLACK"
                   configuration={
                     selectedNode.data
-                      .configuration ??
-                    {}
+                      .configuration ?? {}
                   }
                   canEdit={canEdit}
                   onChange={
@@ -806,8 +844,7 @@ export function NodeConfigurationPanel({
                   provider="DISCORD"
                   configuration={
                     selectedNode.data
-                      .configuration ??
-                    {}
+                      .configuration ?? {}
                   }
                   canEdit={canEdit}
                   onChange={
@@ -824,8 +861,7 @@ export function NodeConfigurationPanel({
                   }
                   configuration={
                     selectedNode.data
-                      .configuration ??
-                    {}
+                      .configuration ?? {}
                   }
                   canEdit={canEdit}
                   onChange={

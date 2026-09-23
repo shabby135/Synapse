@@ -12,14 +12,6 @@ import {
   getAncestorNodeIds,
 } from "./data-mapping";
 import {
-  GoogleCalendarActionError,
-  parseGoogleCalendarActionConfiguration,
-} from "./google-calendar-action-configuration";
-import {
-  GoogleCalendarTriggerError,
-  parseGoogleCalendarTriggerConfiguration,
-} from "./google-calendar-trigger-configuration";
-import {
   GmailActionError,
   parseGmailActionConfiguration,
 } from "./gmail-action-configuration";
@@ -28,13 +20,21 @@ import {
   parseGmailTriggerConfiguration,
 } from "./gmail-trigger-configuration";
 import {
+  GitHubActionError,
+  parseGitHubActionConfiguration,
+} from "./github-action-configuration";
+import {
   GitHubTriggerError,
   parseGitHubTriggerConfiguration,
 } from "./github-trigger-configuration";
 import {
-  GitHubActionError,
-  parseGitHubActionConfiguration,
-} from "./github-action-configuration";
+  GoogleCalendarActionError,
+  parseGoogleCalendarActionConfiguration,
+} from "./google-calendar-action-configuration";
+import {
+  GoogleCalendarTriggerError,
+  parseGoogleCalendarTriggerConfiguration,
+} from "./google-calendar-trigger-configuration";
 import {
   GoogleSheetsActionError,
   parseGoogleSheetsActionConfiguration,
@@ -48,17 +48,21 @@ import {
   parseHttpActionConfiguration,
 } from "./http-request-configuration";
 import {
+  JiraTriggerError,
+  parseJiraTriggerConfiguration,
+} from "./jira-trigger-configuration";
+import {
   MessagingActionError,
   parseMessagingActionConfiguration,
 } from "./messaging-action-configuration";
 import {
-  parseTrelloTriggerConfiguration,
-  TrelloTriggerError,
-} from "./trello-trigger-configuration";
-import {
   parseTrelloActionConfiguration,
   TrelloActionError,
 } from "./trello-action-configuration";
+import {
+  parseTrelloTriggerConfiguration,
+  TrelloTriggerError,
+} from "./trello-trigger-configuration";
 import {
   saveWorkflowDefinitionSchema,
 } from "./validator";
@@ -159,6 +163,13 @@ export function validateWorkflowForPublish(
       );
     } else if (
       triggerType ===
+      "JIRA_NEW_ISSUE"
+    ) {
+      parseJiraTriggerConfiguration(
+        trigger.data
+      );
+    } else if (
+      triggerType ===
       "TRELLO_NEW_CARD"
     ) {
       parseTrelloTriggerConfiguration(
@@ -176,9 +187,14 @@ export function validateWorkflowForPublish(
         GoogleSheetsTriggerError ||
       error instanceof
         GoogleCalendarTriggerError ||
-      error instanceof GmailTriggerError ||
-      error instanceof GitHubTriggerError ||
-      error instanceof TrelloTriggerError
+      error instanceof
+        GmailTriggerError ||
+      error instanceof
+        GitHubTriggerError ||
+      error instanceof
+        JiraTriggerError ||
+      error instanceof
+        TrelloTriggerError
     ) {
       return {
         valid: false,

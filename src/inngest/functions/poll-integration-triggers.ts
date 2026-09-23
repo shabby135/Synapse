@@ -21,17 +21,20 @@ import {
   TRIGGER_LEASE_MS,
 } from "@/features/workflow/integration-trigger-runtime";
 import {
-  googleCalendarTriggerHandler,
-} from "@/features/workflow/poll-google-calendar-trigger";
-import {
   gmailTriggerHandler,
 } from "@/features/workflow/poll-gmail-trigger";
 import {
   githubTriggerHandler,
 } from "@/features/workflow/poll-github-trigger";
 import {
+  googleCalendarTriggerHandler,
+} from "@/features/workflow/poll-google-calendar-trigger";
+import {
   googleSheetsTriggerHandler,
 } from "@/features/workflow/poll-google-sheets-trigger";
+import {
+  jiraTriggerHandler,
+} from "@/features/workflow/poll-jira-trigger";
 import {
   trelloTriggerHandler,
 } from "@/features/workflow/poll-trello-trigger";
@@ -90,6 +93,16 @@ if (
 ) {
   registerIntegrationTriggerHandler(
     githubTriggerHandler
+  );
+}
+
+if (
+  !getIntegrationTriggerHandler(
+    jiraTriggerHandler.type
+  )
+) {
+  registerIntegrationTriggerHandler(
+    jiraTriggerHandler
   );
 }
 
@@ -172,13 +185,16 @@ async function synchronizePublishedTriggers() {
         (node) =>
           node.type === "trigger"
       );
+
     const configuration =
       trigger?.data.configuration ?? {};
+
     const triggerType =
       typeof configuration.triggerType ===
       "string"
         ? configuration.triggerType
         : "";
+
     const handler =
       getIntegrationTriggerHandler(
         triggerType
@@ -203,6 +219,7 @@ async function synchronizePublishedTriggers() {
       stableConfigurationHash(
         configuration
       );
+
     const [existing] = await db
       .select({
         id: workflowIntegrationTrigger.id,
@@ -348,6 +365,7 @@ export const pollIntegrationTriggers =
           `poll-${due.id}`,
           async () => {
             const now = new Date();
+
             const [claimed] =
               await db
                 .update(
@@ -379,7 +397,9 @@ export const pollIntegrationTriggers =
                 )
                 .returning();
 
-            if (!claimed) return;
+            if (!claimed) {
+              return;
+            }
 
             try {
               const [version] =
@@ -419,6 +439,7 @@ export const pollIntegrationTriggers =
                         .edges,
                   }
                 );
+
               const node =
                 parsed.nodes.find(
                   (item) =>
