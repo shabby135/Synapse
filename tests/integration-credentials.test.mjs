@@ -95,7 +95,9 @@ test("requires the provider credential fields and secure URLs", () => {
     () =>
       validateProviderCredentials(
         "GMAIL",
-        { accessToken: "token" }
+        {
+          accessToken: "token",
+        }
       ),
     /Refresh token is required/
   );
@@ -136,6 +138,20 @@ test("requires the provider credential fields and secure URLs", () => {
       ),
     /valid Trello API key/
   );
+
+  assert.throws(
+    () =>
+      validateProviderCredentials(
+        "JIRA",
+        {
+          siteUrl:
+            "https://synapse-test.atlassian.net",
+          email:
+            "owner@example.com",
+        }
+      ),
+    /API token is required/
+  );
 });
 
 test("masks Trello API keys and tokens", () => {
@@ -166,6 +182,117 @@ test("masks Trello API keys and tokens", () => {
   );
 });
 
+test("validates and masks Jira credentials", () => {
+  const credentials = {
+    siteUrl:
+      "https://synapse-test.atlassian.net",
+    email:
+      "owner@example.com",
+    apiToken:
+      "jira-api-token-example-1234",
+  };
+
+  assert.deepEqual(
+    validateProviderCredentials(
+      "JIRA",
+      credentials
+    ),
+    credentials
+  );
+
+  assert.deepEqual(
+    createCredentialPreview(
+      "JIRA",
+      credentials
+    ),
+    [
+      {
+        key: "siteUrl",
+        label: "Jira site URL",
+        configured: true,
+        displayValue:
+          "https://synapse-test.atlassian.net",
+      },
+      {
+        key: "email",
+        label: "Atlassian email",
+        configured: true,
+        displayValue:
+          "owner@example.com",
+      },
+      {
+        key: "apiToken",
+        label: "API token",
+        configured: true,
+        displayValue: "••••1234",
+      },
+    ]
+  );
+
+  assert.throws(
+    () =>
+      validateProviderCredentials(
+        "JIRA",
+        {
+          ...credentials,
+          siteUrl:
+            "https://example.com",
+        }
+      ),
+    /Jira Cloud site URL/
+  );
+
+  assert.throws(
+    () =>
+      validateProviderCredentials(
+        "JIRA",
+        {
+          ...credentials,
+          siteUrl:
+            "http://synapse-test.atlassian.net",
+        }
+      ),
+    /must use HTTPS/
+  );
+
+  assert.throws(
+    () =>
+      validateProviderCredentials(
+        "JIRA",
+        {
+          ...credentials,
+          siteUrl:
+            "https://synapse-test.atlassian.net/jira",
+        }
+      ),
+    /Jira Cloud site URL/
+  );
+
+  assert.throws(
+    () =>
+      validateProviderCredentials(
+        "JIRA",
+        {
+          ...credentials,
+          email: "invalid-email",
+        }
+      ),
+    /valid Atlassian account email/
+  );
+
+  assert.throws(
+    () =>
+      validateProviderCredentials(
+        "JIRA",
+        {
+          ...credentials,
+          apiToken: "short",
+        }
+      ),
+    /valid Jira API token/
+  );
+});
+
 test("masks secrets while retaining non-secret configuration", () => {
   assert.equal(
     maskCredentialValue(
@@ -182,7 +309,8 @@ test("masks secrets while retaining non-secret configuration", () => {
           "https://api.example.com",
         authHeader:
           "X-API-Key",
-        token: "secret-token-9876",
+        token:
+          "secret-token-9876",
       }
     ),
     [
@@ -198,7 +326,8 @@ test("masks secrets while retaining non-secret configuration", () => {
         label:
           "Authorization header",
         configured: true,
-        displayValue: "X-API-Key",
+        displayValue:
+          "X-API-Key",
       },
       {
         key: "token",

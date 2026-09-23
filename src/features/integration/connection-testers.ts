@@ -17,6 +17,12 @@ import type {
 import {
   validateProviderCredentials,
 } from "./credential-definition";
+import {
+  classifyJiraStatus,
+  createJiraConnectionRequest,
+  normalizeJiraSiteUrl,
+  parseJiraAccount,
+} from "./jira-connection";
 import type {
   IntegrationProvider,
 } from "./provider-registry";
@@ -27,7 +33,11 @@ import {
 } from "./trello-connection";
 
 const TEST_TIMEOUT_MS = 15_000;
+
 const MAX_TRELLO_RESPONSE_BYTES =
+  64_000;
+
+const MAX_JIRA_RESPONSE_BYTES =
   64_000;
 
 async function readBoundedBody(
@@ -76,13 +86,15 @@ function apiKeyTester(
       credentials,
       signal,
     }) => {
-      const apiKey = credentials.apiKey;
+      const apiKey =
+        credentials.apiKey;
 
       if (!apiKey) {
         return {
           status:
             "INVALID_CREDENTIALS",
-          message: "API key is missing.",
+          message:
+            "API key is missing.",
         };
       }
 
@@ -92,6 +104,7 @@ function apiKeyTester(
           apiKey,
           signal,
         });
+
       let response: Response;
 
       try {
@@ -250,7 +263,9 @@ const trelloTester =
       credentials,
       signal,
     }) => {
-      const apiKey = credentials.apiKey;
+      const apiKey =
+        credentials.apiKey;
+
       const apiToken =
         credentials.apiToken;
 
@@ -269,6 +284,7 @@ const trelloTester =
           apiToken,
           signal,
         });
+
       let response: Response;
 
       try {
@@ -300,10 +316,11 @@ const trelloTester =
         };
       }
 
-      const body = await readBoundedBody(
-        response,
-        MAX_TRELLO_RESPONSE_BYTES
-      );
+      const body =
+        await readBoundedBody(
+          response,
+          MAX_TRELLO_RESPONSE_BYTES
+        );
 
       if (body === null) {
         return {
@@ -326,14 +343,17 @@ const trelloTester =
 
         return {
           status: "CONNECTED",
-          externalAccountId: member.id,
+          externalAccountId:
+            member.id,
           externalAccountName:
             member.fullName
               ? `${member.fullName} (@${member.username})`
               : `@${member.username}`,
           metadata: {
-            username: member.username,
-            fullName: member.fullName,
+            username:
+              member.username,
+            fullName:
+              member.fullName,
           },
         };
       } catch (error) {
@@ -349,6 +369,151 @@ const trelloTester =
     }
   );
 
+const jiraTester =
+  defineConnectionTester(
+    "JIRA",
+    async ({
+      credentials,
+      signal,
+    }) => {
+      const siteUrl =
+        credentials.siteUrl;
+
+      const email =
+        credentials.email;
+
+      const apiToken =
+        credentials.apiToken;
+
+      if (
+        !siteUrl ||
+        !email ||
+        !apiToken
+      ) {
+        return {
+          status:
+            "INVALID_CREDENTIALS",
+          message:
+            "Jira site URL, Atlassian email, and API token are required.",
+        };
+      }
+
+      let request: ReturnType<
+        typeof createJiraConnectionRequest
+      >;
+
+      try {
+        request =
+          createJiraConnectionRequest({
+            siteUrl,
+            email,
+            apiToken,
+            signal,
+          });
+      } catch (error) {
+        return {
+          status:
+            "INVALID_CREDENTIALS",
+          message:
+            error instanceof Error
+              ? error.message
+              : "The Jira connection settings are invalid.",
+        };
+      }
+
+      let response: Response;
+
+      try {
+        response = await fetch(
+          request.url,
+          request.init
+        );
+      } catch (error) {
+        if (
+          error instanceof Error &&
+          (error.name ===
+            "AbortError" ||
+            error.name ===
+              "TimeoutError")
+        ) {
+          return {
+            status:
+              "PROVIDER_UNAVAILABLE",
+            message:
+              "Jira connection test timed out.",
+          };
+        }
+
+        return {
+          status:
+            "PROVIDER_UNAVAILABLE",
+          message:
+            "Jira could not be reached.",
+        };
+      }
+
+      const body =
+        await readBoundedBody(
+          response,
+          MAX_JIRA_RESPONSE_BYTES
+        );
+
+      if (body === null) {
+        return {
+          status:
+            "PROVIDER_UNAVAILABLE",
+          message:
+            "Jira returned an unexpectedly large response.",
+        };
+      }
+
+      if (!response.ok) {
+        return classifyJiraStatus(
+          response.status
+        );
+      }
+
+      try {
+        const account =
+          parseJiraAccount(body);
+
+        if (!account.active) {
+          return {
+            status:
+              "INVALID_CREDENTIALS",
+            message:
+              "The connected Jira account is inactive.",
+          };
+        }
+
+        return {
+          status: "CONNECTED",
+          externalAccountId:
+            account.accountId,
+          externalAccountName:
+            account.displayName,
+          metadata: {
+            siteUrl:
+              normalizeJiraSiteUrl(
+                siteUrl
+              ),
+            displayName:
+              account.displayName,
+          },
+        };
+      } catch (error) {
+        return {
+          status:
+            "PROVIDER_UNAVAILABLE",
+          message:
+            error instanceof Error
+              ? error.message
+              : "Jira returned an invalid response.",
+        };
+      }
+    }
+  );
+
 const testers = {
   ...Object.fromEntries(
     apiKeyProviderValues.map(
@@ -359,8 +524,10 @@ const testers = {
     )
   ),
   SLACK: webhookTester("SLACK"),
-  DISCORD: webhookTester("DISCORD"),
+  DISCORD:
+    webhookTester("DISCORD"),
   TRELLO: trelloTester,
+  JIRA: jiraTester,
 } as Partial<
   Record<
     IntegrationProvider,
@@ -389,7 +556,8 @@ export async function testIntegrationConnection({
 
   if (!tester) {
     return {
-      status: "PROVIDER_UNAVAILABLE",
+      status:
+        "PROVIDER_UNAVAILABLE",
       message:
         "Connection testing is not implemented for this provider yet.",
     };
@@ -400,8 +568,10 @@ export async function testIntegrationConnection({
       provider,
       credentials
     );
+
   const controller =
     new AbortController();
+
   const timeout = setTimeout(
     () => controller.abort(),
     TEST_TIMEOUT_MS
@@ -411,7 +581,8 @@ export async function testIntegrationConnection({
     return await tester({
       provider,
       credentials: validated,
-      signal: controller.signal,
+      signal:
+        controller.signal,
     });
   } finally {
     clearTimeout(timeout);

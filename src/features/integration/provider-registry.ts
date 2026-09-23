@@ -15,6 +15,7 @@ export const integrationProviderValues = [
   "AIRTABLE",
   "GITHUB",
   "TRELLO",
+  "JIRA",
   "STRIPE",
   "RESEND",
   "CUSTOM_API",
@@ -232,6 +233,17 @@ export const integrationProviderRegistry = {
     capabilities: [
       "CARD_TRIGGER",
       "CREATE_CARD",
+    ],
+    availability: "ACTIVE",
+  },
+  JIRA: {
+    provider: "JIRA",
+    label: "Jira",
+    category: "DEVELOPMENT",
+    authStrategy: "API_KEY",
+    capabilities: [
+      "ISSUE_TRIGGER",
+      "CREATE_ISSUE",
     ],
     availability: "ACTIVE",
   },

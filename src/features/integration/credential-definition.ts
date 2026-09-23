@@ -109,6 +109,29 @@ export const providerCredentialFields = {
       format: "TEXT",
     },
   ],
+  JIRA: [
+    {
+      key: "siteUrl",
+      label: "Jira site URL",
+      required: true,
+      secret: false,
+      format: "HTTPS_URL",
+    },
+    {
+      key: "email",
+      label: "Atlassian email",
+      required: true,
+      secret: false,
+      format: "TEXT",
+    },
+    {
+      key: "apiToken",
+      label: "API token",
+      required: true,
+      secret: true,
+      format: "TEXT",
+    },
+  ],
   STRIPE: [
     {
       key: "secretKey",
@@ -199,6 +222,7 @@ function validateWebhookUrl(
       "hooks.slack.com",
       "hooks.slack-gov.com",
     ]).has(hostname);
+
     const validPath =
       /^\/services\/[^/]+\/[^/]+\/[^/]+\/?$/.test(
         url.pathname
@@ -218,6 +242,7 @@ function validateWebhookUrl(
       "canary.discord.com",
       "ptb.discord.com",
     ]).has(hostname);
+
     const validPath =
       /^\/api(?:\/v\d+)?\/webhooks\/\d+\/[^/]+\/?$/.test(
         url.pathname
@@ -256,12 +281,79 @@ function validateTrelloCredential(
   }
 }
 
+function validateJiraCredential(
+  provider: IntegrationProvider,
+  key: string,
+  value: string
+) {
+  if (provider !== "JIRA") {
+    return;
+  }
+
+  if (key === "siteUrl") {
+    const url = new URL(value);
+    const hostname =
+      url.hostname.toLowerCase();
+
+    const validHostname =
+      /^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.atlassian\.net$/u.test(
+        hostname
+      );
+
+    if (
+      !validHostname ||
+      url.port ||
+      (url.pathname !== "/" &&
+        url.pathname !== "") ||
+      url.search ||
+      url.hash
+    ) {
+      throw new IntegrationCredentialError(
+        "Enter a Jira Cloud site URL such as https://your-site.atlassian.net."
+      );
+    }
+  }
+
+  if (key === "email") {
+    const validEmail =
+      value.length <= 254 &&
+      value === value.trim() &&
+      /^[^\s@]+@[^\s@]+\.[^\s@]+$/u.test(
+        value
+      );
+
+    if (!validEmail) {
+      throw new IntegrationCredentialError(
+        "Enter a valid Atlassian account email."
+      );
+    }
+  }
+
+  if (key === "apiToken") {
+    const validToken =
+      value.length >= 16 &&
+      value.length <= 2_048 &&
+      value === value.trim() &&
+      !/[\s\u0000-\u001f\u007f]/u.test(
+        value
+      );
+
+    if (!validToken) {
+      throw new IntegrationCredentialError(
+        "Enter a valid Jira API token."
+      );
+    }
+  }
+}
+
 export function validateProviderCredentials(
   provider: IntegrationProvider,
   credentials: IntegrationCredentials
 ): IntegrationCredentials {
   const definitions =
-    providerCredentialFields[provider] as readonly CredentialFieldDefinition[];
+    providerCredentialFields[
+      provider
+    ] as readonly CredentialFieldDefinition[];
 
   const allowedKeys = new Set(
     definitions.map(
@@ -315,6 +407,12 @@ export function validateProviderCredentials(
 
     if (value) {
       validateTrelloCredential(
+        provider,
+        definition.key,
+        value
+      );
+
+      validateJiraCredential(
         provider,
         definition.key,
         value

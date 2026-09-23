@@ -11,7 +11,7 @@ import {
 test("registers every planned Synapse provider exactly once", () => {
   assert.equal(
     integrationProviderValues.length,
-    19
+    20
   );
 
   assert.deepEqual(
@@ -41,10 +41,12 @@ test("keeps existing webhook providers active", () => {
       definition.authStrategy,
       "WEBHOOK"
     );
+
     assert.equal(
       definition.availability,
       "ACTIVE"
     );
+
     assert.equal(
       providerSupportsCapability(
         provider,
@@ -71,10 +73,12 @@ test("activates the six AI API-key providers", () => {
       definition.authStrategy,
       "API_KEY"
     );
+
     assert.equal(
       definition.availability,
       "ACTIVE"
     );
+
     assert.equal(
       providerSupportsCapability(
         provider,
@@ -99,6 +103,7 @@ test("activates the four OAuth providers", () => {
       definition.authStrategy,
       "OAUTH2"
     );
+
     assert.equal(
       definition.availability,
       "ACTIVE"
@@ -114,10 +119,12 @@ test("activates Trello card capabilities", () => {
     definition.authStrategy,
     "API_KEY"
   );
+
   assert.equal(
     definition.availability,
     "ACTIVE"
   );
+
   assert.equal(
     providerSupportsCapability(
       "TRELLO",
@@ -125,10 +132,42 @@ test("activates Trello card capabilities", () => {
     ),
     true
   );
+
   assert.equal(
     providerSupportsCapability(
       "TRELLO",
       "CREATE_CARD"
+    ),
+    true
+  );
+});
+
+test("activates Jira issue capabilities", () => {
+  const definition =
+    getIntegrationProvider("JIRA");
+
+  assert.equal(
+    definition.authStrategy,
+    "API_KEY"
+  );
+
+  assert.equal(
+    definition.availability,
+    "ACTIVE"
+  );
+
+  assert.equal(
+    providerSupportsCapability(
+      "JIRA",
+      "ISSUE_TRIGGER"
+    ),
+    true
+  );
+
+  assert.equal(
+    providerSupportsCapability(
+      "JIRA",
+      "CREATE_ISSUE"
     ),
     true
   );
@@ -142,6 +181,7 @@ test("describes the shared provider capabilities used by future nodes", () => {
     ),
     true
   );
+
   assert.equal(
     providerSupportsCapability(
       "GOOGLE_SHEETS",
@@ -149,6 +189,7 @@ test("describes the shared provider capabilities used by future nodes", () => {
     ),
     true
   );
+
   assert.equal(
     providerSupportsCapability(
       "STRIPE",

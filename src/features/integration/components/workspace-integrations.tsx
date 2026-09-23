@@ -130,6 +130,27 @@ function credentialPlaceholder(
     return "Enter your Trello API token";
   }
 
+  if (
+    provider === "JIRA" &&
+    key === "siteUrl"
+  ) {
+    return "https://your-site.atlassian.net";
+  }
+
+  if (
+    provider === "JIRA" &&
+    key === "email"
+  ) {
+    return "you@example.com";
+  }
+
+  if (
+    provider === "JIRA" &&
+    key === "apiToken"
+  ) {
+    return "Enter your Jira API token";
+  }
+
   if (key === "apiKey") {
     return `Enter your ${
       getIntegrationProvider(provider)
@@ -888,6 +909,30 @@ export function WorkspaceIntegrations({
                 . The token needs read and
                 write access for upcoming
                 card workflows.
+              </p>
+            )}
+
+            {provider === "JIRA" &&
+              !usesOAuth && (
+              <p className="rounded-md border bg-muted/40 p-3 text-sm text-muted-foreground">
+                Enter your Jira Cloud site
+                URL, Atlassian account email,
+                and a classic non-scoped API
+                token from{" "}
+                <a
+                  href="https://id.atlassian.com/manage-profile/security/api-tokens"
+                  target="_blank"
+                  rel="noreferrer"
+                  className="font-medium text-foreground underline underline-offset-4"
+                >
+                  Atlassian API tokens
+                </a>
+                . Use the base site URL, such
+                as{" "}
+                <span className="font-medium text-foreground">
+                  https://your-site.atlassian.net
+                </span>
+                .
               </p>
             )}
 

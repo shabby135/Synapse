@@ -99,6 +99,13 @@
       "when": 1790120457677,
       "tag": "0013_add_trello_integration",
       "breakpoints": true
+    },
+    {
+      "idx": 14,
+      "version": "7",
+      "when": 1790164688914,
+      "tag": "0014_add_jira_integration",
+      "breakpoints": true
     }
   ]
 }
