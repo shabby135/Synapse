@@ -11,7 +11,7 @@ import {
 test("registers every planned Synapse provider exactly once", () => {
   assert.equal(
     integrationProviderValues.length,
-    20
+    21
   );
 
   assert.deepEqual(
@@ -89,10 +89,11 @@ test("activates the six AI API-key providers", () => {
   }
 });
 
-test("activates the four OAuth providers", () => {
+test("activates the five OAuth providers", () => {
   for (const provider of [
     "GMAIL",
     "GOOGLE_SHEETS",
+    "GOOGLE_FORMS",
     "GOOGLE_CALENDAR",
     "GITHUB",
   ]) {
@@ -109,6 +110,49 @@ test("activates the four OAuth providers", () => {
       "ACTIVE"
     );
   }
+});
+
+test("activates Google Forms response capabilities", () => {
+  const definition =
+    getIntegrationProvider(
+      "GOOGLE_FORMS"
+    );
+
+  assert.equal(
+    definition.label,
+    "Google Forms"
+  );
+
+  assert.equal(
+    definition.category,
+    "PRODUCTIVITY"
+  );
+
+  assert.equal(
+    definition.authStrategy,
+    "OAUTH2"
+  );
+
+  assert.equal(
+    definition.availability,
+    "ACTIVE"
+  );
+
+  assert.equal(
+    providerSupportsCapability(
+      "GOOGLE_FORMS",
+      "FORM_RESPONSE_TRIGGER"
+    ),
+    true
+  );
+
+  assert.equal(
+    providerSupportsCapability(
+      "GOOGLE_FORMS",
+      "CREATE_FORM"
+    ),
+    false
+  );
 });
 
 test("activates Trello card capabilities", () => {

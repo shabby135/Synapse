@@ -154,6 +154,71 @@ test("requires the provider credential fields and secure URLs", () => {
   );
 });
 
+test("validates and masks Google Forms OAuth credentials", () => {
+  const credentials = {
+    accessToken:
+      "forms-access-token-1234",
+    refreshToken:
+      "forms-refresh-token-5678",
+  };
+
+  assert.deepEqual(
+    validateProviderCredentials(
+      "GOOGLE_FORMS",
+      credentials
+    ),
+    credentials
+  );
+
+  assert.deepEqual(
+    createCredentialPreview(
+      "GOOGLE_FORMS",
+      credentials
+    ),
+    [
+      {
+        key: "accessToken",
+        label: "Access token",
+        configured: true,
+        displayValue: "••••1234",
+      },
+      {
+        key: "refreshToken",
+        label: "Refresh token",
+        configured: true,
+        displayValue: "••••5678",
+      },
+    ]
+  );
+
+  assert.throws(
+    () =>
+      validateProviderCredentials(
+        "GOOGLE_FORMS",
+        {
+          accessToken:
+            "forms-access-token-1234",
+        }
+      ),
+    /Refresh token is required/
+  );
+
+  assert.throws(
+    () =>
+      validateProviderCredentials(
+        "GOOGLE_FORMS",
+        {
+          accessToken:
+            "forms-access-token-1234",
+          refreshToken:
+            "forms-refresh-token-5678",
+          formId: "not-a-credential",
+        }
+      ),
+    /formId is not a supported credential field/
+  );
+});
+
 test("masks Trello API keys and tokens", () => {
   assert.deepEqual(
     createCredentialPreview(

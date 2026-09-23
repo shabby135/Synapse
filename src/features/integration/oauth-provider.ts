@@ -13,6 +13,7 @@ import type {
 export const oauthProviderValues = [
   "GMAIL",
   "GOOGLE_SHEETS",
+  "GOOGLE_FORMS",
   "GOOGLE_CALENDAR",
   "GITHUB",
 ] as const satisfies readonly IntegrationProvider[];
@@ -40,6 +41,7 @@ const googleTokenUrl =
   "https://oauth2.googleapis.com/token";
 const googleAccountUrl =
   "https://openidconnect.googleapis.com/v1/userinfo";
+
 const googleIdentityScopes = [
   "openid",
   "email",
@@ -78,6 +80,22 @@ export const oauthProviderRegistry = {
       "GOOGLE_CLIENT_SECRET",
     accountUrl: googleAccountUrl,
   },
+  GOOGLE_FORMS: {
+    provider: "GOOGLE_FORMS",
+    authorizationUrl:
+      googleAuthorizationUrl,
+    tokenUrl: googleTokenUrl,
+    scopes: [
+      ...googleIdentityScopes,
+      "https://www.googleapis.com/auth/forms.body.readonly",
+      "https://www.googleapis.com/auth/forms.responses.readonly",
+    ],
+    clientIdEnvironmentVariable:
+      "GOOGLE_CLIENT_ID",
+    clientSecretEnvironmentVariable:
+      "GOOGLE_CLIENT_SECRET",
+    accountUrl: googleAccountUrl,
+  },
   GOOGLE_CALENDAR: {
     provider: "GOOGLE_CALENDAR",
     authorizationUrl:
@@ -99,12 +117,17 @@ export const oauthProviderRegistry = {
       "https://github.com/login/oauth/authorize",
     tokenUrl:
       "https://github.com/login/oauth/access_token",
-    scopes: ["read:user", "user:email", "repo"],
+    scopes: [
+      "read:user",
+      "user:email",
+      "repo",
+    ],
     clientIdEnvironmentVariable:
       "GITHUB_CLIENT_ID",
     clientSecretEnvironmentVariable:
       "GITHUB_CLIENT_SECRET",
-    accountUrl: "https://api.github.com/user",
+    accountUrl:
+      "https://api.github.com/user",
   },
 } as const satisfies Record<
   OAuthProvider,
@@ -144,13 +167,17 @@ export function createPkcePair(): {
   const verifier = base64Url(
     randomBytes(32)
   );
+
   const challenge = base64Url(
     createHash("sha256")
       .update(verifier, "utf8")
       .digest()
   );
 
-  return { verifier, challenge };
+  return {
+    verifier,
+    challenge,
+  };
 }
 
 export function createOAuthAuthorizationUrl({
@@ -168,6 +195,7 @@ export function createOAuthAuthorizationUrl({
 }): string {
   const definition =
     oauthProviderRegistry[provider];
+
   const url = new URL(
     definition.authorizationUrl
   );
@@ -176,23 +204,32 @@ export function createOAuthAuthorizationUrl({
     "client_id",
     clientId
   );
+
   url.searchParams.set(
     "redirect_uri",
     redirectUri
   );
+
   url.searchParams.set(
     "response_type",
     "code"
   );
+
   url.searchParams.set(
     "scope",
     definition.scopes.join(" ")
   );
-  url.searchParams.set("state", state);
+
+  url.searchParams.set(
+    "state",
+    state
+  );
+
   url.searchParams.set(
     "code_challenge",
     codeChallenge
   );
+
   url.searchParams.set(
     "code_challenge_method",
     "S256"
@@ -203,6 +240,7 @@ export function createOAuthAuthorizationUrl({
       "access_type",
       "offline"
     );
+
     url.searchParams.set(
       "prompt",
       "consent"

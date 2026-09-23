@@ -11,6 +11,7 @@ export const integrationProviderValues = [
   "MICROSOFT_TEAMS",
   "GMAIL",
   "GOOGLE_SHEETS",
+  "GOOGLE_FORMS",
   "GOOGLE_CALENDAR",
   "AIRTABLE",
   "GITHUB",
@@ -53,6 +54,7 @@ export type IntegrationCapability =
   | "EMAIL_TRIGGER"
   | "ROW_TRIGGER"
   | "APPEND_ROW"
+  | "FORM_RESPONSE_TRIGGER"
   | "EVENT_TRIGGER"
   | "CREATE_EVENT"
   | "RECORD_TRIGGER"
@@ -167,7 +169,9 @@ export const integrationProviderRegistry = {
     label: "Microsoft Teams",
     category: "COMMUNICATION",
     authStrategy: "WEBHOOK",
-    capabilities: ["SEND_MESSAGE"],
+    capabilities: [
+      "SEND_MESSAGE",
+    ],
     availability: "PLANNED",
   },
   GMAIL: {
@@ -189,6 +193,16 @@ export const integrationProviderRegistry = {
     capabilities: [
       "ROW_TRIGGER",
       "APPEND_ROW",
+    ],
+    availability: "ACTIVE",
+  },
+  GOOGLE_FORMS: {
+    provider: "GOOGLE_FORMS",
+    label: "Google Forms",
+    category: "PRODUCTIVITY",
+    authStrategy: "OAUTH2",
+    capabilities: [
+      "FORM_RESPONSE_TRIGGER",
     ],
     availability: "ACTIVE",
   },
@@ -252,7 +266,9 @@ export const integrationProviderRegistry = {
     label: "Stripe",
     category: "PAYMENTS",
     authStrategy: "SIGNING_SECRET",
-    capabilities: ["PAYMENT_TRIGGER"],
+    capabilities: [
+      "PAYMENT_TRIGGER",
+    ],
     availability: "PLANNED",
   },
   RESEND: {
@@ -260,7 +276,9 @@ export const integrationProviderRegistry = {
     label: "Resend",
     category: "EMAIL",
     authStrategy: "API_KEY",
-    capabilities: ["SEND_EMAIL"],
+    capabilities: [
+      "SEND_EMAIL",
+    ],
     availability: "PLANNED",
   },
   CUSTOM_API: {
@@ -268,7 +286,9 @@ export const integrationProviderRegistry = {
     label: "Custom API",
     category: "GENERIC",
     authStrategy: "CUSTOM",
-    capabilities: ["CUSTOM_HTTP"],
+    capabilities: [
+      "CUSTOM_HTTP",
+    ],
     availability: "PLANNED",
   },
 } as const satisfies Record<

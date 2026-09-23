@@ -75,6 +75,7 @@ export const providerCredentialFields = {
   MICROSOFT_TEAMS: webhookFields,
   GMAIL: googleOAuthFields,
   GOOGLE_SHEETS: googleOAuthFields,
+  GOOGLE_FORMS: googleOAuthFields,
   GOOGLE_CALENDAR: googleOAuthFields,
   AIRTABLE: apiKeyFields,
   GITHUB: [
