@@ -24,6 +24,9 @@ import {
 import {
   executeMessagingAction,
 } from "./execute-messaging-action";
+import {
+  executeTrelloAction,
+} from "./execute-trello-action";
 import type {
   WorkflowNodeData,
 } from "./types";
@@ -151,6 +154,14 @@ export async function executeAction({
 
     case "GITHUB_CREATE_ISSUE":
       return executeGitHubAction({
+        runId,
+        workflowId,
+        nodeId,
+        data,
+      });
+
+    case "TRELLO_CREATE_CARD":
+      return executeTrelloAction({
         runId,
         workflowId,
         nodeId,

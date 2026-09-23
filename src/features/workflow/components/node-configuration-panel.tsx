@@ -29,6 +29,12 @@ import {
   DataMappingPanel,
 } from "./data-mapping-panel";
 import {
+  GoogleCalendarActionConfiguration,
+} from "./google-calendar-action-configuration";
+import {
+  GoogleCalendarTriggerConfiguration,
+} from "./google-calendar-trigger-configuration";
+import {
   GmailActionConfiguration,
 } from "./gmail-action-configuration";
 import {
@@ -41,12 +47,6 @@ import {
   GitHubTriggerConfiguration,
 } from "./github-trigger-configuration";
 import {
-  GoogleCalendarActionConfiguration,
-} from "./google-calendar-action-configuration";
-import {
-  GoogleCalendarTriggerConfiguration,
-} from "./google-calendar-trigger-configuration";
-import {
   GoogleSheetsActionConfiguration,
 } from "./google-sheets-action-configuration";
 import {
@@ -58,6 +58,9 @@ import {
 import {
   MessagingActionConfiguration,
 } from "./messaging-action-configuration";
+import {
+  TrelloActionConfiguration,
+} from "./trello-action-configuration";
 import {
   TrelloTriggerConfiguration,
 } from "./trello-trigger-configuration";
@@ -113,6 +116,10 @@ const actionTypes = [
   {
     value: "GITHUB_CREATE_ISSUE",
     label: "GitHub — Create Issue",
+  },
+  {
+    value: "TRELLO_CREATE_CARD",
+    label: "Trello — Create Card",
   },
 ] as const;
 
@@ -284,7 +291,8 @@ export function NodeConfigurationPanel({
           location: "",
           startDateTime: "",
           endDateTime: "",
-          timeZone: "Asia/Kolkata",
+          timeZone:
+            "Asia/Kolkata",
           attendees: "",
           sendUpdates: false,
         },
@@ -355,6 +363,31 @@ export function NodeConfigurationPanel({
             "Created automatically by Synapse.\n\n{{input}}",
           labels: "",
           assignees: "",
+        },
+      });
+
+      return;
+    }
+
+    if (
+      nextActionType ===
+      "TRELLO_CREATE_CARD"
+    ) {
+      updateData({
+        configuration: {
+          actionType:
+            "TRELLO_CREATE_CARD",
+          integrationId: "",
+          listId: "",
+          name:
+            "Card from Synapse workflow",
+          description:
+            "Created automatically by Synapse.\n\n{{input}}",
+          position: "bottom",
+          due: "",
+          dueComplete: false,
+          memberIds: "",
+          labelIds: "",
         },
       });
 
@@ -720,7 +753,8 @@ export function NodeConfigurationPanel({
                 <HttpActionConfiguration
                   configuration={
                     selectedNode.data
-                      .configuration ?? {}
+                      .configuration ??
+                    {}
                   }
                   canEdit={canEdit}
                   onChange={
@@ -734,7 +768,8 @@ export function NodeConfigurationPanel({
                 <AiActionConfiguration
                   configuration={
                     selectedNode.data
-                      .configuration ?? {}
+                      .configuration ??
+                    {}
                   }
                   canEdit={canEdit}
                   onChange={
@@ -746,11 +781,14 @@ export function NodeConfigurationPanel({
               {actionType ===
                 "SLACK_MESSAGE" && (
                 <MessagingActionConfiguration
-                  workspaceId={workspaceId}
+                  workspaceId={
+                    workspaceId
+                  }
                   provider="SLACK"
                   configuration={
                     selectedNode.data
-                      .configuration ?? {}
+                      .configuration ??
+                    {}
                   }
                   canEdit={canEdit}
                   onChange={
@@ -762,11 +800,14 @@ export function NodeConfigurationPanel({
               {actionType ===
                 "DISCORD_MESSAGE" && (
                 <MessagingActionConfiguration
-                  workspaceId={workspaceId}
+                  workspaceId={
+                    workspaceId
+                  }
                   provider="DISCORD"
                   configuration={
                     selectedNode.data
-                      .configuration ?? {}
+                      .configuration ??
+                    {}
                   }
                   canEdit={canEdit}
                   onChange={
@@ -778,10 +819,13 @@ export function NodeConfigurationPanel({
               {actionType ===
                 "GOOGLE_CALENDAR_CREATE_EVENT" && (
                 <GoogleCalendarActionConfiguration
-                  workspaceId={workspaceId}
+                  workspaceId={
+                    workspaceId
+                  }
                   configuration={
                     selectedNode.data
-                      .configuration ?? {}
+                      .configuration ??
+                    {}
                   }
                   canEdit={canEdit}
                   onChange={
@@ -823,6 +867,21 @@ export function NodeConfigurationPanel({
               {actionType ===
                 "GITHUB_CREATE_ISSUE" && (
                 <GitHubActionConfiguration
+                  workspaceId={workspaceId}
+                  configuration={
+                    selectedNode.data
+                      .configuration ?? {}
+                  }
+                  canEdit={canEdit}
+                  onChange={
+                    updateConfiguration
+                  }
+                />
+              )}
+
+              {actionType ===
+                "TRELLO_CREATE_CARD" && (
+                <TrelloActionConfiguration
                   workspaceId={workspaceId}
                   configuration={
                     selectedNode.data

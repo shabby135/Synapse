@@ -415,7 +415,16 @@ function transformConfiguration(
                       "labels",
                       "assignees",
                     ]
-                : [];
+                  : type ===
+                      "TRELLO_CREATE_CARD"
+                    ? [
+                        "name",
+                        "description",
+                        "due",
+                        "memberIds",
+                        "labelIds",
+                      ]
+                    : [];
 
   let visited = 0;
 
@@ -562,7 +571,9 @@ function transformConfiguration(
       result[field] = transform(
         value,
         field === "labels" ||
-          field === "assignees",
+          field === "assignees" ||
+          field === "memberIds" ||
+          field === "labelIds",
         field
       );
     }
@@ -670,9 +681,20 @@ export function configurationForPublish(
 
           if (
             field === "labels" ||
-            field === "assignees"
+            field === "assignees" ||
+            field === "memberIds" ||
+            field === "labelIds"
           ) {
-            return ["mapped-value"];
+            return field === "memberIds" ||
+              field === "labelIds"
+              ? [
+                  "64f1234567890abcdef12345",
+                ]
+              : ["mapped-value"];
+          }
+
+          if (field === "due") {
+            return "2026-01-01T10:00:00Z";
           }
 
           if (

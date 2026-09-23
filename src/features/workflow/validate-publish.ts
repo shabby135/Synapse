@@ -28,13 +28,13 @@ import {
   parseGmailTriggerConfiguration,
 } from "./gmail-trigger-configuration";
 import {
-  GitHubActionError,
-  parseGitHubActionConfiguration,
-} from "./github-action-configuration";
-import {
   GitHubTriggerError,
   parseGitHubTriggerConfiguration,
 } from "./github-trigger-configuration";
+import {
+  GitHubActionError,
+  parseGitHubActionConfiguration,
+} from "./github-action-configuration";
 import {
   GoogleSheetsActionError,
   parseGoogleSheetsActionConfiguration,
@@ -55,6 +55,10 @@ import {
   parseTrelloTriggerConfiguration,
   TrelloTriggerError,
 } from "./trello-trigger-configuration";
+import {
+  parseTrelloActionConfiguration,
+  TrelloActionError,
+} from "./trello-action-configuration";
 import {
   saveWorkflowDefinitionSchema,
 } from "./validator";
@@ -79,6 +83,7 @@ const supportedActionTypes: ReadonlySet<string> =
     "GOOGLE_SHEETS_APPEND_ROW",
     "GMAIL_SEND_EMAIL",
     "GITHUB_CREATE_ISSUE",
+    "TRELLO_CREATE_CARD",
   ]);
 
 export function validateWorkflowForPublish(
@@ -316,6 +321,15 @@ export function validateWorkflowForPublish(
           validationData
         );
       }
+
+      if (
+        actionType ===
+        "TRELLO_CREATE_CARD"
+      ) {
+        parseTrelloActionConfiguration(
+          validationData
+        );
+      }
     } catch (error) {
       if (
         error instanceof
@@ -333,7 +347,9 @@ export function validateWorkflowForPublish(
         error instanceof
           GmailActionError ||
         error instanceof
-          GitHubActionError
+          GitHubActionError ||
+        error instanceof
+          TrelloActionError
       ) {
         return {
           valid: false,
