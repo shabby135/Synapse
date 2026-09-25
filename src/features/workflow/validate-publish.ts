@@ -36,6 +36,10 @@ import {
   parseGoogleCalendarTriggerConfiguration,
 } from "./google-calendar-trigger-configuration";
 import {
+  GoogleFormsTriggerError,
+  parseGoogleFormsTriggerConfiguration,
+} from "./google-forms-trigger-configuration";
+import {
   GoogleSheetsActionError,
   parseGoogleSheetsActionConfiguration,
 } from "./google-sheets-action-configuration";
@@ -154,6 +158,13 @@ export function validateWorkflowForPublish(
       );
     } else if (
       triggerType ===
+      "GOOGLE_FORMS_NEW_RESPONSE"
+    ) {
+      parseGoogleFormsTriggerConfiguration(
+        trigger.data
+      );
+    } else if (
+      triggerType ===
       "GMAIL_NEW_EMAIL"
     ) {
       parseGmailTriggerConfiguration(
@@ -192,6 +203,8 @@ export function validateWorkflowForPublish(
         GoogleSheetsTriggerError ||
       error instanceof
         GoogleCalendarTriggerError ||
+      error instanceof
+        GoogleFormsTriggerError ||
       error instanceof
         GmailTriggerError ||
       error instanceof

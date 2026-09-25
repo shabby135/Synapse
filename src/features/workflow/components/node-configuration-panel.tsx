@@ -47,6 +47,9 @@ import {
   GoogleCalendarTriggerConfiguration,
 } from "./google-calendar-trigger-configuration";
 import {
+  GoogleFormsTriggerConfiguration,
+} from "./google-forms-trigger-configuration";
+import {
   GoogleSheetsActionConfiguration,
 } from "./google-sheets-action-configuration";
 import {
@@ -147,6 +150,12 @@ const triggerTypes = [
       "GOOGLE_CALENDAR_NEW_EVENT",
     label:
       "Google Calendar — New Event",
+  },
+  {
+    value:
+      "GOOGLE_FORMS_NEW_RESPONSE",
+    label:
+      "Google Forms — New Response",
   },
   {
     value: "GMAIL_NEW_EMAIL",
@@ -489,6 +498,28 @@ export function NodeConfigurationPanel({
 
     if (
       nextTriggerType ===
+      "GOOGLE_FORMS_NEW_RESPONSE"
+    ) {
+      updateData({
+        label:
+          "Google Forms New Response",
+        description:
+          "Starts when a new response is submitted to a Google Form.",
+        configuration: {
+          triggerType:
+            "GOOGLE_FORMS_NEW_RESPONSE",
+          integrationId: "",
+          formId: "",
+          startMode: "FROM_NOW",
+          pollIntervalMinutes: 1,
+        },
+      });
+
+      return;
+    }
+
+    if (
+      nextTriggerType ===
       "GMAIL_NEW_EMAIL"
     ) {
       updateData({
@@ -707,6 +738,21 @@ export function NodeConfigurationPanel({
               {triggerType ===
                 "GOOGLE_CALENDAR_NEW_EVENT" && (
                 <GoogleCalendarTriggerConfiguration
+                  workspaceId={workspaceId}
+                  configuration={
+                    selectedNode.data
+                      .configuration ?? {}
+                  }
+                  canEdit={canEdit}
+                  onChange={
+                    updateConfiguration
+                  }
+                />
+              )}
+
+              {triggerType ===
+                "GOOGLE_FORMS_NEW_RESPONSE" && (
+                <GoogleFormsTriggerConfiguration
                   workspaceId={workspaceId}
                   configuration={
                     selectedNode.data

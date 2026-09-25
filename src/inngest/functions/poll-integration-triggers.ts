@@ -30,6 +30,9 @@ import {
   googleCalendarTriggerHandler,
 } from "@/features/workflow/poll-google-calendar-trigger";
 import {
+  googleFormsTriggerHandler,
+} from "@/features/workflow/poll-google-forms-trigger";
+import {
   googleSheetsTriggerHandler,
 } from "@/features/workflow/poll-google-sheets-trigger";
 import {
@@ -73,6 +76,16 @@ if (
 ) {
   registerIntegrationTriggerHandler(
     googleCalendarTriggerHandler
+  );
+}
+
+if (
+  !getIntegrationTriggerHandler(
+    googleFormsTriggerHandler.type
+  )
+) {
+  registerIntegrationTriggerHandler(
+    googleFormsTriggerHandler
   );
 }
 
