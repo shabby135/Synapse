@@ -17,12 +17,12 @@ import type {
   IntegrationCredentials,
 } from "./credential-codec";
 import {
+  validateProviderCredentials,
+} from "./credential-definition";
+import {
   decryptIntegrationCredentials,
   encryptIntegrationCredentials,
 } from "./credential-store";
-import {
-  validateProviderCredentials,
-} from "./credential-definition";
 import {
   createIntegrationSecretContext,
 } from "./encryption";
@@ -32,6 +32,9 @@ import {
 import {
   refreshOAuthCredentials,
 } from "./oauth-service";
+import {
+  OAuthTokenRequestError,
+} from "./oauth-token-error";
 import type {
   IntegrationProvider,
 } from "./validator";
@@ -66,6 +69,17 @@ type RefreshResult =
       message: string;
     };
 
+type OAuthRefreshFailure = {
+  connectionStatus:
+    | "ACTIVE"
+    | "NEEDS_REAUTH"
+    | "ERROR";
+  storedMessage: string;
+  workflowMessage: string;
+  kind: string;
+  providerCode: string | null;
+};
+
 export type ResolvedWorkflowIntegration = {
   id: string;
   workspaceId: string;
@@ -85,6 +99,7 @@ export class WorkflowIntegrationError
   extends Error {
   constructor(message: string) {
     super(message);
+
     this.name =
       "WorkflowIntegrationError";
   }
@@ -157,6 +172,85 @@ function shouldRefreshOAuthToken(
   );
 }
 
+function oauthRefreshFailure(
+  error: unknown
+): OAuthRefreshFailure {
+  if (
+    error instanceof
+    OAuthTokenRequestError
+  ) {
+    if (
+      error.kind ===
+      "REAUTH_REQUIRED"
+    ) {
+      return {
+        connectionStatus:
+          "NEEDS_REAUTH",
+        storedMessage:
+          "The OAuth connection is no longer authorized and must be reconnected.",
+        workflowMessage:
+          "The OAuth connection must be reconnected.",
+        kind: error.kind,
+        providerCode:
+          error.providerCode,
+      };
+    }
+
+    if (
+      error.kind === "TEMPORARY"
+    ) {
+      return {
+        connectionStatus:
+          "ACTIVE",
+        storedMessage:
+          "The OAuth provider is temporarily unavailable. Synapse will retry automatically.",
+        workflowMessage:
+          "The OAuth provider is temporarily unavailable. Synapse will retry automatically.",
+        kind: error.kind,
+        providerCode:
+          error.providerCode,
+      };
+    }
+
+    if (
+      error.kind ===
+      "CONFIGURATION"
+    ) {
+      return {
+        connectionStatus: "ERROR",
+        storedMessage:
+          "The OAuth client configuration was rejected.",
+        workflowMessage:
+          "The OAuth connection is incorrectly configured.",
+        kind: error.kind,
+        providerCode:
+          error.providerCode,
+      };
+    }
+
+    return {
+      connectionStatus: "ERROR",
+      storedMessage:
+        "The OAuth provider rejected the token refresh request.",
+      workflowMessage:
+        "The OAuth access token could not be refreshed.",
+      kind: error.kind,
+      providerCode:
+        error.providerCode,
+    };
+  }
+
+  return {
+    connectionStatus: "ERROR",
+    storedMessage:
+      "The OAuth access token could not be refreshed.",
+    workflowMessage:
+      "The OAuth access token could not be refreshed.",
+    kind: "UNKNOWN",
+    providerCode: null,
+  };
+}
+
 async function refreshIntegrationCredentials({
   integrationId,
   workspaceId,
@@ -178,10 +272,11 @@ async function refreshIntegrationCredentials({
     result = await db.transaction(
       async (transaction) => {
         /*
-         * Lock the connection while refreshing.
-         * This prevents concurrent workflow runs
-         * from using the same rotating refresh
-         * token at the same time.
+         * Lock the connection while
+         * refreshing. This prevents
+         * concurrent workflow runs from
+         * using the same rotating refresh
+         * token simultaneously.
          */
         const [locked] =
           await transaction
@@ -265,7 +360,9 @@ async function refreshIntegrationCredentials({
             );
         } catch {
           await transaction
-            .update(workspaceIntegration)
+            .update(
+              workspaceIntegration
+            )
             .set({
               status: "ERROR",
               lastError:
@@ -288,8 +385,9 @@ async function refreshIntegrationCredentials({
 
         /*
          * Another workflow run may have
-         * refreshed the token while this run
-         * was waiting for the row lock.
+         * refreshed the token while this
+         * run was waiting for the row
+         * lock.
          */
         if (
           !shouldRefreshOAuthToken(
@@ -307,9 +405,12 @@ async function refreshIntegrationCredentials({
           !currentCredentials.refreshToken
         ) {
           await transaction
-            .update(workspaceIntegration)
+            .update(
+              workspaceIntegration
+            )
             .set({
-              status: "NEEDS_REAUTH",
+              status:
+                "NEEDS_REAUTH",
               lastError:
                 "The OAuth connection has expired and has no refresh token.",
               updatedAt: new Date(),
@@ -353,7 +454,9 @@ async function refreshIntegrationCredentials({
             });
 
           await transaction
-            .update(workspaceIntegration)
+            .update(
+              workspaceIntegration
+            )
             .set({
               encryptedValue:
                 encrypted.encryptedValue,
@@ -399,19 +502,21 @@ async function refreshIntegrationCredentials({
               refreshedCredentials,
           };
         } catch (error) {
-          /*
-           * The refresh endpoint currently does
-           * not distinguish invalid_grant from
-           * temporary provider failures. Mark
-           * this as ERROR rather than incorrectly
-           * requiring reauthorization.
-           */
+          const failure =
+            oauthRefreshFailure(
+              error
+            );
+
           await transaction
-            .update(workspaceIntegration)
+            .update(
+              workspaceIntegration
+            )
             .set({
-              status: "ERROR",
+              status:
+                failure
+                  .connectionStatus,
               lastError:
-                "The OAuth access token could not be refreshed.",
+                failure.storedMessage,
               updatedAt: new Date(),
             })
             .where(
@@ -427,6 +532,10 @@ async function refreshIntegrationCredentials({
               provider,
               workspaceId,
               integrationId,
+              failureKind:
+                failure.kind,
+              providerCode:
+                failure.providerCode,
               error:
                 error instanceof Error
                   ? error.message
@@ -437,7 +546,7 @@ async function refreshIntegrationCredentials({
           return {
             success: false,
             message:
-              "The OAuth access token could not be refreshed.",
+              failure.workflowMessage,
           };
         }
       }

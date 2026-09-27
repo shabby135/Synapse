@@ -8,8 +8,14 @@ import {
   oauthProviderRegistry,
   type OAuthProvider,
 } from "./oauth-provider";
+import {
+  createOAuthTokenRequestError,
+  OAuthTokenRequestError,
+} from "./oauth-token-error";
 
 const OAUTH_TIMEOUT_MS = 15_000;
+const MAX_ERROR_RESPONSE_LENGTH =
+  32_768;
 
 type OAuthTokenResponse = {
   accessToken: string;
@@ -108,7 +114,8 @@ function parseTokenResponse(
 ): OAuthTokenResponse {
   if (
     typeof payload !== "object" ||
-    payload === null
+    payload === null ||
+    Array.isArray(payload)
   ) {
     throw new Error(
       "The OAuth provider returned an invalid token response."
@@ -119,6 +126,7 @@ function parseTokenResponse(
     string,
     unknown
   >;
+
   const accessToken = readString(
     record.access_token
   );
@@ -152,6 +160,26 @@ function parseTokenResponse(
   };
 }
 
+async function readProviderErrorPayload(
+  response: Response
+): Promise<unknown> {
+  try {
+    const body = await response.text();
+
+    if (
+      !body ||
+      body.length >
+        MAX_ERROR_RESPONSE_LENGTH
+    ) {
+      return null;
+    }
+
+    return JSON.parse(body);
+  } catch {
+    return null;
+  }
+}
+
 async function requestToken({
   provider,
   parameters,
@@ -163,20 +191,32 @@ async function requestToken({
 }): Promise<OAuthTokenResponse> {
   const definition =
     oauthProviderRegistry[provider];
+
   const controller =
     new AbortController();
+
+  const abortFromCaller = () => {
+    controller.abort(
+      signal?.reason
+    );
+  };
+
+  if (signal?.aborted) {
+    abortFromCaller();
+  } else {
+    signal?.addEventListener(
+      "abort",
+      abortFromCaller,
+      {
+        once: true,
+      }
+    );
+  }
+
   const timeout = setTimeout(
     () => controller.abort(),
     OAUTH_TIMEOUT_MS
   );
-
-  if (signal) {
-    signal.addEventListener(
-      "abort",
-      () => controller.abort(),
-      { once: true }
-    );
-  }
 
   try {
     const response = await fetch(
@@ -198,19 +238,49 @@ async function requestToken({
     );
 
     if (!response.ok) {
-      await response.body
-        ?.cancel()
-        .catch(() => undefined);
-      throw new Error(
-        "The OAuth provider rejected the token request."
-      );
+      const payload =
+        await readProviderErrorPayload(
+          response
+        );
+
+      throw createOAuthTokenRequestError({
+        status: response.status,
+        payload,
+      });
     }
 
     return parseTokenResponse(
       await response.json()
     );
+  } catch (error) {
+    if (
+      error instanceof
+      OAuthTokenRequestError
+    ) {
+      throw error;
+    }
+
+    const timedOutOrAborted =
+      error instanceof Error &&
+      (error.name ===
+        "AbortError" ||
+        error.name ===
+          "TimeoutError");
+
+    throw new OAuthTokenRequestError({
+      kind: "TEMPORARY",
+      status: null,
+      message: timedOutOrAborted
+        ? "The OAuth token request timed out or was cancelled."
+        : "The OAuth provider could not be reached.",
+    });
   } finally {
     clearTimeout(timeout);
+
+    signal?.removeEventListener(
+      "abort",
+      abortFromCaller
+    );
   }
 }
 
@@ -225,20 +295,25 @@ export async function exchangeOAuthCode({
   codeVerifier: string;
   redirectUri: string;
 }): Promise<OAuthTokenResponse> {
-  const { clientId, clientSecret } =
-    getOAuthClientConfig(provider);
+  const {
+    clientId,
+    clientSecret,
+  } = getOAuthClientConfig(provider);
 
   return requestToken({
     provider,
-    parameters: new URLSearchParams({
-      grant_type:
-        "authorization_code",
-      client_id: clientId,
-      client_secret: clientSecret,
-      code,
-      code_verifier: codeVerifier,
-      redirect_uri: redirectUri,
-    }),
+    parameters:
+      new URLSearchParams({
+        grant_type:
+          "authorization_code",
+        client_id: clientId,
+        client_secret:
+          clientSecret,
+        code,
+        code_verifier:
+          codeVerifier,
+        redirect_uri: redirectUri,
+      }),
   });
 }
 
@@ -258,23 +333,34 @@ export async function refreshOAuthCredentials({
     credentials.refreshToken;
 
   if (!refreshToken) {
-    throw new Error(
-      "This OAuth connection has no refresh token."
-    );
+    throw new OAuthTokenRequestError({
+      kind: "REAUTH_REQUIRED",
+      status: null,
+      message:
+        "This OAuth connection has no refresh token.",
+    });
   }
 
-  const { clientId, clientSecret } =
-    getOAuthClientConfig(provider);
-  const refreshed = await requestToken({
-    provider,
-    parameters: new URLSearchParams({
-      grant_type: "refresh_token",
-      refresh_token: refreshToken,
-      client_id: clientId,
-      client_secret: clientSecret,
-    }),
-    signal,
-  });
+  const {
+    clientId,
+    clientSecret,
+  } = getOAuthClientConfig(provider);
+
+  const refreshed =
+    await requestToken({
+      provider,
+      parameters:
+        new URLSearchParams({
+          grant_type:
+            "refresh_token",
+          refresh_token:
+            refreshToken,
+          client_id: clientId,
+          client_secret:
+            clientSecret,
+        }),
+      signal,
+    });
 
   return {
     credentials:
@@ -285,7 +371,8 @@ export async function refreshOAuthCredentials({
         refreshToken:
           refreshed.refreshToken,
       }),
-    expiresAt: refreshed.expiresAt,
+    expiresAt:
+      refreshed.expiresAt,
   };
 }
 
@@ -298,27 +385,48 @@ export async function fetchOAuthAccount({
 }): Promise<OAuthAccount> {
   const definition =
     oauthProviderRegistry[provider];
-  const response = await fetch(
-    definition.accountUrl,
-    {
-      headers: {
-        Accept: "application/json",
-        Authorization: `Bearer ${accessToken}`,
-        "User-Agent":
-          "Synapse-OAuth/1.0",
-      },
-      redirect: "error",
-      cache: "no-store",
-      signal: AbortSignal.timeout(
-        OAUTH_TIMEOUT_MS
-      ),
-    }
-  );
+
+  let response: Response;
+
+  try {
+    response = await fetch(
+      definition.accountUrl,
+      {
+        headers: {
+          Accept: "application/json",
+          Authorization:
+            `Bearer ${accessToken}`,
+          "User-Agent":
+            "Synapse-OAuth/1.0",
+        },
+        redirect: "error",
+        cache: "no-store",
+        signal:
+          AbortSignal.timeout(
+            OAUTH_TIMEOUT_MS
+          ),
+      }
+    );
+  } catch (error) {
+    const timedOutOrAborted =
+      error instanceof Error &&
+      (error.name ===
+        "AbortError" ||
+        error.name ===
+          "TimeoutError");
+
+    throw new Error(
+      timedOutOrAborted
+        ? "The OAuth account verification timed out."
+        : "The OAuth provider could not be reached."
+    );
+  }
 
   if (!response.ok) {
     await response.body
       ?.cancel()
       .catch(() => undefined);
+
     throw new Error(
       "The OAuth account could not be verified."
     );
@@ -332,6 +440,7 @@ export async function fetchOAuthAccount({
 
   if (provider === "GITHUB") {
     const id = payload.id;
+
     const login = readString(
       payload.login
     );
@@ -354,7 +463,10 @@ export async function fetchOAuthAccount({
     };
   }
 
-  const id = readString(payload.sub);
+  const id = readString(
+    payload.sub
+  );
+
   const email = readString(
     payload.email
   );
