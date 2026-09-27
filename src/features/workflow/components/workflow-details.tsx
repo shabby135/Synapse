@@ -1,7 +1,6 @@
 "use client";
 
 import {
-  useState,
   type FormEvent,
 } from "react";
 import {
@@ -10,7 +9,6 @@ import {
   useQueryClient,
 } from "@tanstack/react-query";
 import {
-  Eye,
   History,
   Loader2,
   Workflow as WorkflowIcon,
@@ -29,57 +27,23 @@ import { Input } from "@/components/ui/input";
 import { hasWorkspacePermission } from "@/features/workspace/permissions";
 import { useTRPC } from "@/trpc/react";
 
-import { RunWorkflowControl } from "./run-workflow-control";
-import { WorkflowBuilder } from "./workflow-builder";
-import { WorkflowRunDetailsDialog } from "./workflow-run-details-dialog";
-import { WorkflowWebhookControl } from "./workflow-webhook-controller";
+import {
+  RunWorkflowControl,
+} from "./run-workflow-control";
+import {
+  WorkflowBuilder,
+} from "./workflow-builder";
+import {
+  WorkflowRunHistory,
+} from "./workflow-run-history";
+import {
+  WorkflowWebhookControl,
+} from "./workflow-webhook-controller";
 
 type WorkflowDetailsProps = {
   workspaceId: string;
   workflowId: string;
 };
-
-function getRunStatusClassName(
-  status: string
-) {
-  switch (status) {
-    case "SUCCESS":
-      return "bg-green-500/10 text-green-700";
-
-    case "FAILED":
-      return "bg-destructive/10 text-destructive";
-
-    case "RUNNING":
-      return "bg-blue-500/10 text-blue-700";
-
-    case "CANCELLED":
-      return "bg-muted text-muted-foreground";
-
-    default:
-      return "bg-amber-500/10 text-amber-700";
-  }
-}
-
-function getRunTriggerLabel(
-  triggerType: string
-) {
-  switch (triggerType) {
-    case "WEBHOOK":
-      return "Webhook run";
-
-    case "SCHEDULE":
-      return "Scheduled run";
-
-    case "INTEGRATION":
-      return "Integration run";
-
-    case "MANUAL":
-      return "Manual run";
-
-    default:
-      return "Workflow run";
-  }
-}
 
 export function WorkflowDetails({
   workspaceId,
@@ -87,11 +51,6 @@ export function WorkflowDetails({
 }: WorkflowDetailsProps) {
   const trpc = useTRPC();
   const queryClient = useQueryClient();
-
-  const [
-    selectedRunId,
-    setSelectedRunId,
-  ] = useState<string | null>(null);
 
   const workflow = useQuery(
     trpc.workflow.getById.queryOptions({
@@ -105,32 +64,31 @@ export function WorkflowDetails({
     })
   );
 
-  const runs = useQuery(
-    trpc.workflow.listRuns.queryOptions({
-      workflowId,
-      limit: 20,
-    })
-  );
-
   const updateWorkflow = useMutation(
     trpc.workflow.update.mutationOptions({
       onSuccess: async () => {
         await Promise.all([
           queryClient.invalidateQueries(
-            trpc.workflow.getById.queryFilter({
-              id: workflowId,
-            })
+            trpc.workflow.getById.queryFilter(
+              {
+                id: workflowId,
+              }
+            )
           ),
 
           queryClient.invalidateQueries(
-            trpc.workflow.list.queryFilter({
-              workspaceId,
-              includeArchived: false,
-            })
+            trpc.workflow.list.queryFilter(
+              {
+                workspaceId,
+                includeArchived: false,
+              }
+            )
           ),
         ]);
 
-        toast.success("Workflow updated.");
+        toast.success(
+          "Workflow updated."
+        );
       },
     })
   );
@@ -149,7 +107,9 @@ export function WorkflowDetails({
     ).trim();
 
     const description = String(
-      formData.get("description") ?? ""
+      formData.get(
+        "description"
+      ) ?? ""
     ).trim();
 
     updateWorkflow.mutate({
@@ -183,7 +143,7 @@ export function WorkflowDetails({
 
     return (
       <Card>
-        <CardContent>
+        <CardContent className="p-6">
           <p className="font-medium text-destructive">
             Unable to load workflow
           </p>
@@ -203,7 +163,8 @@ export function WorkflowDetails({
     );
 
   const canExecute =
-    workflow.data.status === "ACTIVE" &&
+    workflow.data.status ===
+      "ACTIVE" &&
     hasWorkspacePermission(
       workspace.data.role,
       "workflow:execute"
@@ -225,14 +186,14 @@ export function WorkflowDetails({
     <div className="space-y-6">
       <Card>
         <CardHeader>
-          <div className="flex items-start justify-between gap-4">
-            <div className="flex items-start gap-3">
+          <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+            <div className="flex min-w-0 items-start gap-3">
               <div className="rounded-lg bg-muted p-3">
                 <WorkflowIcon className="size-6" />
               </div>
 
-              <div>
-                <CardTitle>
+              <div className="min-w-0">
+                <CardTitle className="truncate">
                   {workflow.data.name}
                 </CardTitle>
 
@@ -244,14 +205,18 @@ export function WorkflowDetails({
               </div>
             </div>
 
-            <div className="flex items-center gap-2">
-              <span className="rounded-full bg-muted px-3 py-1 text-xs font-medium">
+            <div className="flex shrink-0 items-center gap-2">
+              <span className="rounded-full border bg-muted/50 px-3 py-1 text-xs font-medium">
                 {workflow.data.status}
               </span>
 
               <RunWorkflowControl
-                workflowId={workflowId}
-                canExecute={canExecute}
+                workflowId={
+                  workflowId
+                }
+                canExecute={
+                  canExecute
+                }
               />
             </div>
           </div>
@@ -261,8 +226,12 @@ export function WorkflowDetails({
       <Card className="overflow-hidden">
         <CardContent className="p-0">
           <WorkflowBuilder
-            workflowId={workflowId}
-            workspaceId={workspaceId}
+            workflowId={
+              workflowId
+            }
+            workspaceId={
+              workspaceId
+            }
             canEdit={canEdit}
             initialDefinition={
               latestDefinition
@@ -280,6 +249,10 @@ export function WorkflowDetails({
         }
       />
 
+      <WorkflowRunHistory
+        workflowId={workflowId}
+      />
+
       {canEdit && (
         <Card>
           <CardHeader>
@@ -288,15 +261,17 @@ export function WorkflowDetails({
             </CardTitle>
 
             <CardDescription>
-              Update the workflow name and
-              description.
+              Update the workflow name
+              and description.
             </CardDescription>
           </CardHeader>
 
           <CardContent>
             <form
               key={workflow.data.updatedAt.toString()}
-              onSubmit={handleSubmit}
+              onSubmit={
+                handleSubmit
+              }
               className="space-y-4"
             >
               <div className="space-y-2">
@@ -342,15 +317,15 @@ export function WorkflowDetails({
                   disabled={
                     updateWorkflow.isPending
                   }
-                  className="w-full resize-none rounded-md border bg-background px-3 py-2 text-sm outline-none focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/50 disabled:cursor-not-allowed disabled:opacity-50"
+                  className="w-full resize-y rounded-md border bg-background px-3 py-2 text-sm outline-none focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/50 disabled:cursor-not-allowed disabled:opacity-50"
                 />
               </div>
 
               {updateWorkflow.error && (
                 <p className="text-sm font-medium text-destructive">
                   {
-                    updateWorkflow.error
-                      .message
+                    updateWorkflow
+                      .error.message
                   }
                 </p>
               )}
@@ -378,114 +353,13 @@ export function WorkflowDetails({
             <History className="size-5" />
 
             <CardTitle>
-              Run history
-            </CardTitle>
-          </div>
-
-          <CardDescription>
-  Recent manual, webhook,
-  scheduled, and integration
-  executions of this workflow.
-</CardDescription>
-        </CardHeader>
-
-        <CardContent className="space-y-3">
-          {runs.isPending && (
-            <div className="flex min-h-24 items-center justify-center">
-              <Loader2 className="size-5 animate-spin text-muted-foreground" />
-            </div>
-          )}
-
-          {runs.isError && (
-            <div>
-              <p className="font-medium text-destructive">
-                Unable to load run history
-              </p>
-
-              <p className="mt-1 text-sm text-destructive">
-                {runs.error.message}
-              </p>
-            </div>
-          )}
-
-          {runs.isSuccess &&
-            runs.data.length === 0 && (
-              <p className="py-6 text-center text-sm text-muted-foreground">
-                This workflow has not been
-                executed yet.
-              </p>
-            )}
-
-          {runs.isSuccess &&
-            runs.data.map((run) => (
-              <div
-                key={run.id}
-                className="flex items-center justify-between gap-4 rounded-lg border p-3"
-              >
-                <div>
-                  <p className="font-medium">
-                    {getRunTriggerLabel(
-                      run.triggerType
-                    )}
-                  </p>
-
-                  <p className="mt-1 text-xs text-muted-foreground">
-                    {new Date(
-                      run.createdAt
-                    ).toLocaleString()}
-                  </p>
-
-                  <p className="mt-1 font-mono text-xs text-muted-foreground">
-                    {run.id}
-                  </p>
-
-                  {run.error && (
-                    <p className="mt-2 text-sm text-destructive">
-                      {run.error}
-                    </p>
-                  )}
-                </div>
-
-                <div className="flex items-center gap-2">
-                  <span
-                    className={`rounded-full px-2 py-1 text-xs font-medium ${getRunStatusClassName(
-                      run.status
-                    )}`}
-                  >
-                    {run.status}
-                  </span>
-
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    onClick={() =>
-                      setSelectedRunId(
-                        run.id
-                      )
-                    }
-                  >
-                    <Eye className="size-4" />
-                    Details
-                  </Button>
-                </div>
-              </div>
-            ))}
-        </CardContent>
-      </Card>
-
-      <Card>
-        <CardHeader>
-          <div className="flex items-center gap-2">
-            <History className="size-5" />
-
-            <CardTitle>
               Version history
             </CardTitle>
           </div>
 
           <CardDescription>
-            Saved versions of this workflow.
+            Saved versions of this
+            workflow.
           </CardDescription>
         </CardHeader>
 
@@ -494,7 +368,7 @@ export function WorkflowDetails({
             (version) => (
               <div
                 key={version.id}
-                className="flex items-center justify-between rounded-lg border p-3"
+                className="flex items-center justify-between gap-4 rounded-lg border p-3"
               >
                 <div>
                   <p className="font-medium">
@@ -516,18 +390,6 @@ export function WorkflowDetails({
           )}
         </CardContent>
       </Card>
-
-      {selectedRunId && (
-        <WorkflowRunDetailsDialog
-          runId={selectedRunId}
-          open
-          onOpenChange={(open) => {
-            if (!open) {
-              setSelectedRunId(null);
-            }
-          }}
-        />
-      )}
     </div>
   );
 }

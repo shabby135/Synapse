@@ -1,9 +1,6 @@
 import {
-  LayoutDashboard,
   FolderKanban,
-  FileText,
-  Sparkles,
-  Settings,
+  LayoutDashboard,
 } from "lucide-react";
 
 export const navigation = [
@@ -17,19 +14,4 @@ export const navigation = [
     href: "/workspaces",
     icon: FolderKanban,
   },
-  {
-    title: "Documents",
-    href: "/documents",
-    icon: FileText,
-  },
-  {
-    title: "AI",
-    href: "/ai",
-    icon: Sparkles,
-  },
-  {
-    title: "Settings",
-    href: "/settings",
-    icon: Settings,
-  },
-];
+] as const;
