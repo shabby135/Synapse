@@ -5,7 +5,9 @@ import {
   type ReactNode,
 } from "react";
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import {
+  usePathname,
+} from "next/navigation";
 import {
   ChevronDown,
   FileText,
@@ -16,8 +18,6 @@ import {
   MessageSquare,
   TicketCheck,
 } from "lucide-react";
-
-import { navigation } from "@/constants/navigations";
 
 import {
   Sidebar,
@@ -34,6 +34,9 @@ import {
   SidebarMenuSubButton,
   SidebarMenuSubItem,
 } from "@/components/ui/sidebar";
+import {
+  navigation,
+} from "@/constants/navigations";
 
 type TemplateLogoProps = {
   first: ReactNode;
@@ -57,13 +60,13 @@ function TemplateLogos({
   return (
     <span className="flex w-8 shrink-0 items-center">
       <span
-        className={`relative z-10 flex size-5 items-center justify-center rounded-md border border-background ${firstClassName}`}
+        className={`relative z-10 flex size-5 items-center justify-center rounded-md border border-sidebar ${firstClassName}`}
       >
         {first}
       </span>
 
       <span
-        className={`-ml-1.5 flex size-5 items-center justify-center rounded-md border border-background ${secondClassName}`}
+        className={`-ml-1.5 flex size-5 items-center justify-center rounded-md border border-sidebar ${secondClassName}`}
       >
         {second}
       </span>
@@ -74,7 +77,8 @@ function TemplateLogos({
 const templateNavigation:
   readonly TemplateNavigationItem[] = [
   {
-    title: "Form response triage",
+    title:
+      "Form response triage",
     href:
       "/templates#form-response-triage",
     logos: (
@@ -92,7 +96,8 @@ const templateNavigation:
   },
   {
     title: "Email to task",
-    href: "/templates#email-to-task",
+    href:
+      "/templates#email-to-task",
     logos: (
       <TemplateLogos
         first={
@@ -131,24 +136,28 @@ export function AppSidebar() {
   const [
     templatesOpen,
     setTemplatesOpen,
-  ] = useState(true);
+  ] = useState(
+    pathname === "/templates"
+  );
 
   return (
-    <Sidebar>
-      <SidebarHeader className="border-b px-6 py-4">
+    <Sidebar collapsible="icon">
+      <SidebarHeader className="flex h-16 justify-center border-b px-3 py-2">
         <Link
           href="/dashboard"
-          className="flex items-center gap-2 text-xl font-bold tracking-tight"
+          className="flex min-w-0 items-center gap-3 overflow-hidden rounded-lg px-1 py-1.5"
         >
-          <span className="flex size-8 items-center justify-center rounded-lg bg-primary text-sm font-bold text-primary-foreground">
+          <span className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-primary text-sm font-bold text-primary-foreground shadow-sm">
             S
           </span>
 
-          <span>Synapse</span>
+          <span className="truncate text-lg font-bold tracking-tight group-data-[collapsible=icon]:hidden">
+            Synapse
+          </span>
         </Link>
       </SidebarHeader>
 
-      <SidebarContent className="gap-2 px-2 py-3">
+      <SidebarContent className="gap-4 px-2 py-3">
         <SidebarGroup className="p-0">
           <SidebarGroupLabel>
             Workspace
@@ -175,6 +184,9 @@ export function AppSidebar() {
                       <SidebarMenuButton
                         isActive={
                           isActive
+                        }
+                        tooltip={
+                          item.title
                         }
                         render={
                           <Link
@@ -211,6 +223,7 @@ export function AppSidebar() {
                     pathname ===
                     "/templates"
                   }
+                  tooltip="Browse templates"
                   render={
                     <Link href="/templates" />
                   }

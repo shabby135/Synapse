@@ -1,18 +1,19 @@
 "use client";
 
-import { usePathname } from "next/navigation";
 import {
-  Bell,
-  Search,
-} from "lucide-react";
+  usePathname,
+} from "next/navigation";
 
-import { getPageTitle } from "@/lib/get-page-title";
+import {
+  SidebarTrigger,
+} from "@/components/ui/sidebar";
+import {
+  getPageTitle,
+} from "@/lib/get-page-title";
 
-import { SidebarTrigger } from "@/components/ui/sidebar";
-import { Input } from "@/components/ui/input";
-import { Button } from "@/components/ui/button";
-
-import { UserMenu } from "./user-menu";
+import {
+  UserMenu,
+} from "./user-menu";
 
 export function Topbar() {
   const pathname = usePathname();
@@ -21,36 +22,18 @@ export function Topbar() {
     getPageTitle(pathname);
 
   return (
-    <header className="sticky top-0 z-40 flex h-16 items-center justify-between border-b bg-background px-6">
-      <div className="flex items-center gap-4">
+    <header className="sticky top-0 z-40 flex h-16 items-center justify-between border-b bg-background/90 px-4 backdrop-blur supports-[backdrop-filter]:bg-background/75 sm:px-6">
+      <div className="flex min-w-0 items-center gap-3">
         <SidebarTrigger />
 
-        <h1 className="text-lg font-semibold">
-          {pageTitle}
-        </h1>
-      </div>
-
-      <div className="flex items-center gap-3">
-        <div className="relative hidden md:block">
-          <Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
-
-          <Input
-            placeholder="Search..."
-            className="w-72 pl-9"
-          />
+        <div className="min-w-0">
+          <h1 className="truncate text-base font-semibold sm:text-lg">
+            {pageTitle}
+          </h1>
         </div>
-
-        <Button
-          type="button"
-          variant="ghost"
-          size="icon"
-          aria-label="Notifications"
-        >
-          <Bell className="size-5" />
-        </Button>
-
-        <UserMenu />
       </div>
+
+      <UserMenu />
     </header>
   );
 }
