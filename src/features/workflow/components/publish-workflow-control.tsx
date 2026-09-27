@@ -5,7 +5,10 @@ import {
   useMutation,
   useQueryClient,
 } from "@tanstack/react-query";
-import { Rocket } from "lucide-react";
+import {
+  Loader2,
+  Rocket,
+} from "lucide-react";
 import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
@@ -27,6 +30,7 @@ type PublishWorkflowControlProps = {
   onError: (
     message: string | null
   ) => void;
+  onPublished?: () => void;
 };
 
 export function PublishWorkflowControl({
@@ -36,6 +40,7 @@ export function PublishWorkflowControl({
   edges,
   disabled = false,
   onError,
+  onPublished,
 }: PublishWorkflowControlProps) {
   const trpc = useTRPC();
   const queryClient = useQueryClient();
@@ -57,6 +62,7 @@ export function PublishWorkflowControl({
           onSuccess: async () => {
             setDialogOpen(false);
             onError(null);
+            onPublished?.();
 
             await Promise.all([
               queryClient.invalidateQueries(
@@ -71,8 +77,16 @@ export function PublishWorkflowControl({
                 trpc.workflow.list.queryFilter(
                   {
                     workspaceId,
-                    includeArchived:
-                      false,
+                    includeArchived: true,
+                  }
+                )
+              ),
+
+              queryClient.invalidateQueries(
+                trpc.workflow.listRuns.queryFilter(
+                  {
+                    workflowId,
+                    limit: 20,
                   }
                 )
               ),
@@ -80,6 +94,18 @@ export function PublishWorkflowControl({
 
             toast.success(
               "Workflow published."
+            );
+          },
+
+          onError: (error) => {
+            const message =
+              error.message ||
+              "Unable to publish workflow.";
+
+            onError(message);
+
+            toast.error(
+              "Unable to publish workflow."
             );
           },
         }
@@ -123,6 +149,10 @@ export function PublishWorkflowControl({
   };
 
   function openPublishDialog() {
+    if (disabled || isPending) {
+      return;
+    }
+
     const validation =
       validateWorkflowForPublish(
         workflowId,
@@ -136,6 +166,11 @@ export function PublishWorkflowControl({
 
     if (!validation.valid) {
       onError(validation.message);
+
+      toast.error(
+        validation.message
+      );
+
       return;
     }
 
@@ -144,6 +179,10 @@ export function PublishWorkflowControl({
   }
 
   async function confirmPublish() {
+    if (disabled || isPending) {
+      return;
+    }
+
     onError(null);
 
     try {
@@ -164,24 +203,42 @@ export function PublishWorkflowControl({
     }
   }
 
+  function handleDialogOpenChange(
+    open: boolean
+  ) {
+    if (!isPending) {
+      setDialogOpen(open);
+    }
+  }
+
   return (
     <>
       <Button
         type="button"
         variant="outline"
+        size="sm"
         disabled={
           disabled || isPending
         }
         onClick={openPublishDialog}
       >
-        <Rocket className="size-4" />
-        Publish
+        {isPending ? (
+          <Loader2 className="size-4 animate-spin" />
+        ) : (
+          <Rocket className="size-4" />
+        )}
+
+        {isPending
+          ? "Publishing..."
+          : "Publish"}
       </Button>
 
       <PublishWorkflowDialog
         open={dialogOpen}
         isPending={isPending}
-        onOpenChange={setDialogOpen}
+        onOpenChange={
+          handleDialogOpenChange
+        }
         onConfirm={confirmPublish}
       />
     </>

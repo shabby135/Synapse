@@ -2,13 +2,13 @@
 
 import { useState } from "react";
 import {
-  Loader2,
-  Play,
-} from "lucide-react";
-import {
   useMutation,
   useQueryClient,
 } from "@tanstack/react-query";
+import {
+  Loader2,
+  Play,
+} from "lucide-react";
 import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
@@ -24,11 +24,13 @@ import { useTRPC } from "@/trpc/react";
 
 type RunWorkflowControlProps = {
   workflowId: string;
+  workspaceId: string;
   canExecute: boolean;
 };
 
 export function RunWorkflowControl({
   workflowId,
+  workspaceId,
   canExecute,
 }: RunWorkflowControlProps) {
   const trpc = useTRPC();
@@ -39,12 +41,14 @@ export function RunWorkflowControl({
     setDialogOpen,
   ] = useState(false);
 
-  const [inputJson, setInputJson] =
-    useState(
-      `{
+  const [
+    inputJson,
+    setInputJson,
+  ] = useState(
+    `{
   "topic": "workflow automation"
 }`
-    );
+  );
 
   const [
     validationError,
@@ -62,24 +66,64 @@ export function RunWorkflowControl({
           setDialogOpen(false);
         },
 
-        onSettled: async () => {
-          await queryClient.invalidateQueries(
-            trpc.workflow.listRuns.queryFilter(
-              {
-                workflowId,
-                limit: 20,
-              }
-            )
+        onError: (error) => {
+          toast.error(
+            error.message ||
+              "Unable to run workflow."
           );
+        },
+
+        onSettled: async () => {
+          await Promise.all([
+            queryClient.invalidateQueries(
+              trpc.workflow.listRuns.queryFilter(
+                {
+                  workflowId,
+                  limit: 20,
+                }
+              )
+            ),
+
+            queryClient.invalidateQueries(
+              trpc.workflow.list.queryFilter(
+                {
+                  workspaceId,
+                  includeArchived: true,
+                }
+              )
+            ),
+
+            queryClient.invalidateQueries(
+              trpc.workflow.getById.queryFilter(
+                {
+                  id: workflowId,
+                }
+              )
+            ),
+          ]);
         },
       }
     )
   );
 
   function openDialog() {
+    if (!canExecute) {
+      return;
+    }
+
     executeWorkflow.reset();
     setValidationError(null);
     setDialogOpen(true);
+  }
+
+  function handleDialogOpenChange(
+    open: boolean
+  ) {
+    if (
+      !executeWorkflow.isPending
+    ) {
+      setDialogOpen(open);
+    }
   }
 
   function handleRun() {
@@ -136,21 +180,18 @@ export function RunWorkflowControl({
     <>
       <Button
         type="button"
+        size="sm"
         onClick={openDialog}
       >
         <Play className="size-4" />
-        Run workflow
+        Run
       </Button>
 
       <Dialog
         open={dialogOpen}
-        onOpenChange={(open) => {
-          if (
-            !executeWorkflow.isPending
-          ) {
-            setDialogOpen(open);
-          }
-        }}
+        onOpenChange={
+          handleDialogOpenChange
+        }
       >
         <DialogContent>
           <DialogHeader>
@@ -159,9 +200,9 @@ export function RunWorkflowControl({
             </DialogTitle>
 
             <DialogDescription>
-              Provide the JSON input for the
-              latest published workflow
-              version.
+              Provide the JSON input for
+              the latest published
+              workflow version.
             </DialogDescription>
           </DialogHeader>
 
@@ -188,7 +229,9 @@ export function RunWorkflowControl({
                 );
 
                 if (validationError) {
-                  setValidationError(null);
+                  setValidationError(
+                    null
+                  );
                 }
               }}
               className="w-full resize-y rounded-md border bg-background px-3 py-2 font-mono text-sm outline-none focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/50 disabled:cursor-not-allowed disabled:opacity-50"
@@ -246,7 +289,9 @@ export function RunWorkflowControl({
                 <Play className="size-4" />
               )}
 
-              Run now
+              {executeWorkflow.isPending
+                ? "Starting..."
+                : "Run now"}
             </Button>
           </DialogFooter>
         </DialogContent>

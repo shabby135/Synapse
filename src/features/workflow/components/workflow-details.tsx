@@ -27,18 +27,9 @@ import { Input } from "@/components/ui/input";
 import { hasWorkspacePermission } from "@/features/workspace/permissions";
 import { useTRPC } from "@/trpc/react";
 
-import {
-  RunWorkflowControl,
-} from "./run-workflow-control";
-import {
-  WorkflowBuilder,
-} from "./workflow-builder";
-import {
-  WorkflowRunHistory,
-} from "./workflow-run-history";
-import {
-  WorkflowWebhookControl,
-} from "./workflow-webhook-controller";
+import { WorkflowBuilder } from "./workflow-builder";
+import { WorkflowRunHistory } from "./workflow-run-history";
+import { WorkflowWebhookControl } from "./workflow-webhook-controller";
 
 type WorkflowDetailsProps = {
   workspaceId: string;
@@ -80,7 +71,7 @@ export function WorkflowDetails({
             trpc.workflow.list.queryFilter(
               {
                 workspaceId,
-                includeArchived: false,
+                includeArchived: true,
               }
             )
           ),
@@ -88,6 +79,13 @@ export function WorkflowDetails({
 
         toast.success(
           "Workflow updated."
+        );
+      },
+
+      onError: (error) => {
+        toast.error(
+          error.message ||
+            "Unable to update workflow."
         );
       },
     })
@@ -205,20 +203,9 @@ export function WorkflowDetails({
               </div>
             </div>
 
-            <div className="flex shrink-0 items-center gap-2">
-              <span className="rounded-full border bg-muted/50 px-3 py-1 text-xs font-medium">
-                {workflow.data.status}
-              </span>
-
-              <RunWorkflowControl
-                workflowId={
-                  workflowId
-                }
-                canExecute={
-                  canExecute
-                }
-              />
-            </div>
+            <span className="w-fit shrink-0 rounded-full border bg-muted/50 px-3 py-1 text-xs font-medium">
+              {workflow.data.status}
+            </span>
           </div>
         </CardHeader>
       </Card>
@@ -233,6 +220,9 @@ export function WorkflowDetails({
               workspaceId
             }
             canEdit={canEdit}
+            canExecute={
+              canExecute
+            }
             initialDefinition={
               latestDefinition
             }
@@ -364,28 +354,43 @@ export function WorkflowDetails({
         </CardHeader>
 
         <CardContent className="space-y-3">
-          {workflow.data.versions.map(
-            (version) => (
-              <div
-                key={version.id}
-                className="flex items-center justify-between gap-4 rounded-lg border p-3"
-              >
-                <div>
-                  <p className="font-medium">
-                    Version{" "}
-                    {version.version}
-                  </p>
+          {workflow.data.versions.length ===
+          0 ? (
+            <div className="rounded-lg border border-dashed p-6 text-center">
+              <p className="text-sm font-medium">
+                No saved versions
+              </p>
 
-                  <p className="text-sm text-muted-foreground">
-                    Workflow definition
-                    snapshot
-                  </p>
+              <p className="mt-1 text-xs text-muted-foreground">
+                Save the workflow draft
+                to create its first
+                version.
+              </p>
+            </div>
+          ) : (
+            workflow.data.versions.map(
+              (version) => (
+                <div
+                  key={version.id}
+                  className="flex items-center justify-between gap-4 rounded-lg border p-3"
+                >
+                  <div>
+                    <p className="font-medium">
+                      Version{" "}
+                      {version.version}
+                    </p>
+
+                    <p className="text-sm text-muted-foreground">
+                      Workflow definition
+                      snapshot
+                    </p>
+                  </div>
+
+                  <span className="rounded-full bg-muted px-2 py-1 text-xs font-medium">
+                    {version.status}
+                  </span>
                 </div>
-
-                <span className="rounded-full bg-muted px-2 py-1 text-xs font-medium">
-                  {version.status}
-                </span>
-              </div>
+              )
             )
           )}
         </CardContent>
