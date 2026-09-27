@@ -5,11 +5,11 @@ import {
   WorkspaceIntegrations,
 } from "@/features/integration/components/workspace-integrations";
 import {
-  CreateWorkflowForm,
-} from "@/features/workflow/components/create-workflow-form";
-import {
   WorkflowList,
 } from "@/features/workflow/components/workflow-list";
+import {
+  WorkspaceMonitoringCard,
+} from "@/features/workflow/components/workspace-monitoring-card";
 import {
   AddWorkspaceMemberForm,
 } from "@/features/workspace/components/add-workspace-member-form";
@@ -19,9 +19,6 @@ import {
 import {
   WorkspaceMembers,
 } from "@/features/workspace/components/workspace-members";
-import {
-  WorkspaceMonitoringCard,
-} from "@/features/workflow/components/workspace-monitoring-card";
 
 type WorkspacePageProps = {
   params: Promise<{
@@ -32,7 +29,8 @@ type WorkspacePageProps = {
 export default async function WorkspacePage({
   params,
 }: WorkspacePageProps) {
-  const { workspaceId } = await params;
+  const { workspaceId } =
+    await params;
 
   return (
     <div className="space-y-6">
@@ -40,18 +38,15 @@ export default async function WorkspacePage({
         workspaceId={workspaceId}
       />
 
-      <WorkspaceUsageCard
-        workspaceId={workspaceId}
-      />
-      <WorkspaceMonitoringCard
-  workspaceId={workspaceId}
-/>
-
-      <CreateWorkflowForm
-        workspaceId={workspaceId}
-      />
-
       <WorkflowList
+        workspaceId={workspaceId}
+      />
+
+      <WorkspaceMonitoringCard
+        workspaceId={workspaceId}
+      />
+
+      <WorkspaceUsageCard
         workspaceId={workspaceId}
       />
 

@@ -4,7 +4,10 @@ import {
   asc,
   desc,
   eq,
+  inArray,
+  lte,
   ne,
+  sql,
 } from "drizzle-orm";
 
 import {
@@ -103,43 +106,146 @@ export const workflowRouter = router({
           "workflow:read",
       });
 
-      return ctx.db
-        .select({
-          id: workflow.id,
-          workspaceId:
-            workflow.workspaceId,
-          name: workflow.name,
-          description:
-            workflow.description,
-          status: workflow.status,
-          createdBy:
-            workflow.createdBy,
-          createdAt:
-            workflow.createdAt,
-          updatedAt:
-            workflow.updatedAt,
-        })
-        .from(workflow)
-        .where(
-          input.includeArchived
-            ? eq(
-                workflow.workspaceId,
-                input.workspaceId
-              )
-            : and(
-                eq(
+      const workflowRows =
+        await ctx.db
+          .select({
+            id: workflow.id,
+            workspaceId:
+              workflow.workspaceId,
+            name: workflow.name,
+            description:
+              workflow.description,
+            status: workflow.status,
+            createdBy:
+              workflow.createdBy,
+            createdAt:
+              workflow.createdAt,
+            updatedAt:
+              workflow.updatedAt,
+          })
+          .from(workflow)
+          .where(
+            input.includeArchived
+              ? eq(
                   workflow.workspaceId,
                   input.workspaceId
-                ),
-                ne(
-                  workflow.status,
-                  "ARCHIVED"
                 )
-              )
+              : and(
+                  eq(
+                    workflow.workspaceId,
+                    input.workspaceId
+                  ),
+                  ne(
+                    workflow.status,
+                    "ARCHIVED"
+                  )
+                )
+          )
+          .orderBy(
+            desc(workflow.updatedAt)
+          );
+
+      if (
+        workflowRows.length === 0
+      ) {
+        return [];
+      }
+
+      const rankedRuns = ctx.db
+        .select({
+          id: workflowRun.id,
+          workflowId:
+            workflowRun.workflowId,
+          status:
+            workflowRun.status,
+          triggerType:
+            workflowRun.triggerType,
+          startedAt:
+            workflowRun.startedAt,
+          completedAt:
+            workflowRun.completedAt,
+          createdAt:
+            workflowRun.createdAt,
+          rank: sql<number>`
+            row_number() over (
+              partition by ${workflowRun.workflowId}
+              order by ${workflowRun.createdAt} desc
+            )
+          `.as("run_rank"),
+        })
+        .from(workflowRun)
+        .where(
+          inArray(
+            workflowRun.workflowId,
+            workflowRows.map(
+              (item) => item.id
+            )
+          )
         )
-        .orderBy(
-          desc(workflow.updatedAt)
+        .as("ranked_runs");
+
+      const recentRunRows =
+        await ctx.db
+          .select({
+            id: rankedRuns.id,
+            workflowId:
+              rankedRuns.workflowId,
+            status:
+              rankedRuns.status,
+            triggerType:
+              rankedRuns.triggerType,
+            startedAt:
+              rankedRuns.startedAt,
+            completedAt:
+              rankedRuns.completedAt,
+            createdAt:
+              rankedRuns.createdAt,
+          })
+          .from(rankedRuns)
+          .where(
+            lte(rankedRuns.rank, 5)
+          )
+          .orderBy(
+            desc(rankedRuns.createdAt)
+          );
+
+      const runsByWorkflow =
+        new Map<
+          string,
+          typeof recentRunRows
+        >();
+
+      for (
+        const run of recentRunRows
+      ) {
+        const current =
+          runsByWorkflow.get(
+            run.workflowId
+          ) ?? [];
+
+        current.push(run);
+
+        runsByWorkflow.set(
+          run.workflowId,
+          current
         );
+      }
+
+      return workflowRows.map(
+        (workflowItem) => {
+          const recentRuns =
+            runsByWorkflow.get(
+              workflowItem.id
+            ) ?? [];
+
+          return {
+            ...workflowItem,
+            latestRun:
+              recentRuns[0] ?? null,
+            recentRuns,
+          };
+        }
+      );
     }),
 
   getById: protectedProcedure
@@ -377,148 +483,154 @@ export const workflowRouter = router({
       return updatedWorkflow;
     }),
 
-  saveDefinition: protectedProcedure
-    .input(
-      saveWorkflowDefinitionSchema
-    )
-    .mutation(async ({ ctx, input }) => {
-      const [existingWorkflow] =
-        await ctx.db
-          .select()
-          .from(workflow)
-          .where(
-            eq(
-              workflow.id,
-              input.id
-            )
-          )
-          .limit(1);
-
-      if (!existingWorkflow) {
-        throw new TRPCError({
-          code: "NOT_FOUND",
-          message:
-            "Workflow not found.",
-        });
-      }
-
-      if (
-        existingWorkflow.status ===
-        "ARCHIVED"
-      ) {
-        throw new TRPCError({
-          code: "BAD_REQUEST",
-          message:
-            "Archived workflows cannot be edited.",
-        });
-      }
-
-      await requireWorkspacePermission({
-        database: ctx.db,
-        workspaceId:
-          existingWorkflow.workspaceId,
-        userId:
-          ctx.session.user.id,
-        permission:
-          "workflow:update",
-      });
-
-      return ctx.db.transaction(
-        async (transaction) => {
-          const [latestVersion] =
-            await transaction
-              .select()
-              .from(
-                workflowVersion
-              )
-              .where(
-                eq(
-                  workflowVersion.workflowId,
-                  input.id
-                )
-              )
-              .orderBy(
-                desc(
-                  workflowVersion.version
-                )
-              )
-              .limit(1);
-
-          const definition = {
-            nodes: input.nodes,
-            edges: input.edges,
-            variables:
-              latestVersion
-                ?.definition
-                .variables ?? {},
-          };
-
-          const [savedVersion] =
-            latestVersion?.status ===
-            "DRAFT"
-              ? await transaction
-                  .update(
-                    workflowVersion
-                  )
-                  .set({
-                    definition,
-                    updatedAt:
-                      new Date(),
-                  })
-                  .where(
-                    eq(
-                      workflowVersion.id,
-                      latestVersion.id
-                    )
-                  )
-                  .returning()
-              : await transaction
-                  .insert(
-                    workflowVersion
-                  )
-                  .values({
-                    id:
-                      crypto.randomUUID(),
-                    workflowId:
-                      input.id,
-                    version:
-                      (latestVersion
-                        ?.version ??
-                        0) + 1,
-                    status: "DRAFT",
-                    definition,
-                    createdBy:
-                      ctx.session.user
-                        .id,
-                  })
-                  .returning();
-
-          if (!savedVersion) {
-            throw new TRPCError({
-              code:
-                "INTERNAL_SERVER_ERROR",
-              message:
-                "Failed to save workflow definition.",
-            });
-          }
-
-          await transaction
-            .update(workflow)
-            .set({
-              updatedAt:
-                new Date(),
-            })
+  saveDefinition:
+    protectedProcedure
+      .input(
+        saveWorkflowDefinitionSchema
+      )
+      .mutation(
+        async ({ ctx, input }) => {
+          const [
+            existingWorkflow,
+          ] = await ctx.db
+            .select()
+            .from(workflow)
             .where(
               eq(
                 workflow.id,
                 input.id
               )
-            );
+            )
+            .limit(1);
 
-          return savedVersion;
+          if (!existingWorkflow) {
+            throw new TRPCError({
+              code: "NOT_FOUND",
+              message:
+                "Workflow not found.",
+            });
+          }
+
+          if (
+            existingWorkflow.status ===
+            "ARCHIVED"
+          ) {
+            throw new TRPCError({
+              code: "BAD_REQUEST",
+              message:
+                "Archived workflows cannot be edited.",
+            });
+          }
+
+          await requireWorkspacePermission(
+            {
+              database: ctx.db,
+              workspaceId:
+                existingWorkflow.workspaceId,
+              userId:
+                ctx.session.user.id,
+              permission:
+                "workflow:update",
+            }
+          );
+
+          return ctx.db.transaction(
+            async (transaction) => {
+              const [
+                latestVersion,
+              ] = await transaction
+                .select()
+                .from(
+                  workflowVersion
+                )
+                .where(
+                  eq(
+                    workflowVersion.workflowId,
+                    input.id
+                  )
+                )
+                .orderBy(
+                  desc(
+                    workflowVersion.version
+                  )
+                )
+                .limit(1);
+
+              const definition = {
+                nodes: input.nodes,
+                edges: input.edges,
+                variables:
+                  latestVersion
+                    ?.definition
+                    .variables ?? {},
+              };
+
+              const [savedVersion] =
+                latestVersion?.status ===
+                "DRAFT"
+                  ? await transaction
+                      .update(
+                        workflowVersion
+                      )
+                      .set({
+                        definition,
+                        updatedAt:
+                          new Date(),
+                      })
+                      .where(
+                        eq(
+                          workflowVersion.id,
+                          latestVersion.id
+                        )
+                      )
+                      .returning()
+                  : await transaction
+                      .insert(
+                        workflowVersion
+                      )
+                      .values({
+                        id: crypto.randomUUID(),
+                        workflowId:
+                          input.id,
+                        version:
+                          (latestVersion?.version ??
+                            0) + 1,
+                        status:
+                          "DRAFT",
+                        definition,
+                        createdBy:
+                          ctx.session
+                            .user.id,
+                      })
+                      .returning();
+
+              if (!savedVersion) {
+                throw new TRPCError({
+                  code:
+                    "INTERNAL_SERVER_ERROR",
+                  message:
+                    "Failed to save workflow definition.",
+                });
+              }
+
+              await transaction
+                .update(workflow)
+                .set({
+                  updatedAt:
+                    new Date(),
+                })
+                .where(
+                  eq(
+                    workflow.id,
+                    input.id
+                  )
+                );
+
+              return savedVersion;
+            }
+          );
         }
-      );
-    }),
+      ),
 
   publish: protectedProcedure
     .input(workflowIdSchema)
@@ -593,8 +705,7 @@ export const workflowRouter = router({
 
           if (!latestDraft) {
             throw new TRPCError({
-              code:
-                "BAD_REQUEST",
+              code: "BAD_REQUEST",
               message:
                 "This workflow has no draft version to publish.",
             });
@@ -608,8 +719,7 @@ export const workflowRouter = router({
 
           if (!validation.valid) {
             throw new TRPCError({
-              code:
-                "BAD_REQUEST",
+              code: "BAD_REQUEST",
               message:
                 validation.message,
             });
@@ -622,8 +732,7 @@ export const workflowRouter = router({
               workflowVersion
             )
             .set({
-              status:
-                "PUBLISHED",
+              status: "PUBLISHED",
               updatedAt:
                 new Date(),
             })
@@ -649,22 +758,22 @@ export const workflowRouter = router({
             });
           }
 
-          const [activeWorkflow] =
-            await transaction
-              .update(workflow)
-              .set({
-                status:
-                  "ACTIVE",
-                updatedAt:
-                  new Date(),
-              })
-              .where(
-                eq(
-                  workflow.id,
-                  input.id
-                )
+          const [
+            activeWorkflow,
+          ] = await transaction
+            .update(workflow)
+            .set({
+              status: "ACTIVE",
+              updatedAt:
+                new Date(),
+            })
+            .where(
+              eq(
+                workflow.id,
+                input.id
               )
-              .returning();
+            )
+            .returning();
 
           if (!activeWorkflow) {
             throw new TRPCError({
@@ -685,109 +794,116 @@ export const workflowRouter = router({
       );
     }),
 
-  executeManual: protectedProcedure
-    .input(executeWorkflowSchema)
-    .mutation(async ({ ctx, input }) => {
-      const [existingWorkflow] =
-        await ctx.db
-          .select({
-            id: workflow.id,
-            workspaceId:
-              workflow.workspaceId,
-            status:
-              workflow.status,
-          })
-          .from(workflow)
-          .where(
-            eq(
-              workflow.id,
-              input.id
+  executeManual:
+    protectedProcedure
+      .input(executeWorkflowSchema)
+      .mutation(
+        async ({ ctx, input }) => {
+          const [
+            existingWorkflow,
+          ] = await ctx.db
+            .select({
+              id: workflow.id,
+              workspaceId:
+                workflow.workspaceId,
+              status:
+                workflow.status,
+            })
+            .from(workflow)
+            .where(
+              eq(
+                workflow.id,
+                input.id
+              )
             )
-          )
-          .limit(1);
+            .limit(1);
 
-      if (!existingWorkflow) {
-        throw new TRPCError({
-          code: "NOT_FOUND",
-          message:
-            "Workflow not found.",
-        });
-      }
-
-      await requireWorkspacePermission({
-        database: ctx.db,
-        workspaceId:
-          existingWorkflow.workspaceId,
-        userId:
-          ctx.session.user.id,
-        permission:
-          "workflow:execute",
-      });
-
-      if (
-        existingWorkflow.status !==
-        "ACTIVE"
-      ) {
-        throw new TRPCError({
-          code: "BAD_REQUEST",
-          message:
-            "Only active workflows can be executed.",
-        });
-      }
-
-      try {
-        return await queueWorkflowRun({
-          workflowId:
-            existingWorkflow.id,
-          triggerType: "MANUAL",
-          input: input.input,
-          triggeredBy:
-            ctx.session.user.id,
-        });
-      } catch (error) {
-        if (
-          error instanceof
-          WorkflowRunQueueError
-        ) {
-          if (
-            error.message ===
-            "Workflow not found."
-          ) {
+          if (!existingWorkflow) {
             throw new TRPCError({
               code: "NOT_FOUND",
               message:
-                error.message,
-              cause: error,
+                "Workflow not found.",
             });
           }
 
-          const isExecutionStateError =
-            error.message ===
-              "Only active workflows can be executed." ||
-            error.message ===
-              "The workflow has no published version.";
+          await requireWorkspacePermission(
+            {
+              database: ctx.db,
+              workspaceId:
+                existingWorkflow.workspaceId,
+              userId:
+                ctx.session.user.id,
+              permission:
+                "workflow:execute",
+            }
+          );
 
-          throw new TRPCError({
-            code:
-              isExecutionStateError
-                ? "BAD_REQUEST"
-                : "INTERNAL_SERVER_ERROR",
-            message:
-              isExecutionStateError
-                ? error.message
-                : "Failed to queue workflow execution. Check the server logs and run history.",
-            cause: error,
-          });
+          if (
+            existingWorkflow.status !==
+            "ACTIVE"
+          ) {
+            throw new TRPCError({
+              code: "BAD_REQUEST",
+              message:
+                "Only active workflows can be executed.",
+            });
+          }
+
+          try {
+            return await queueWorkflowRun(
+              {
+                workflowId:
+                  existingWorkflow.id,
+                triggerType:
+                  "MANUAL",
+                input: input.input,
+                triggeredBy:
+                  ctx.session.user.id,
+              }
+            );
+          } catch (error) {
+            if (
+              error instanceof
+              WorkflowRunQueueError
+            ) {
+              if (
+                error.message ===
+                "Workflow not found."
+              ) {
+                throw new TRPCError({
+                  code: "NOT_FOUND",
+                  message:
+                    error.message,
+                  cause: error,
+                });
+              }
+
+              const isExecutionStateError =
+                error.message ===
+                  "Only active workflows can be executed." ||
+                error.message ===
+                  "The workflow has no published version.";
+
+              throw new TRPCError({
+                code:
+                  isExecutionStateError
+                    ? "BAD_REQUEST"
+                    : "INTERNAL_SERVER_ERROR",
+                message:
+                  isExecutionStateError
+                    ? error.message
+                    : "Failed to queue workflow execution. Check the server logs and run history.",
+                cause: error,
+              });
+            }
+
+            throw error;
+          }
         }
-
-        throw error;
-      }
-    }),
+      ),
 
   listRuns: protectedProcedure
-    .input(
-      listWorkflowRunsSchema
-    )
+    .input(listWorkflowRunsSchema)
     .query(async ({ ctx, input }) => {
       const [existingWorkflow] =
         await ctx.db
@@ -834,12 +950,10 @@ export const workflowRouter = router({
             workflowRun.status,
           triggerType:
             workflowRun.triggerType,
-          input:
-            workflowRun.input,
+          input: workflowRun.input,
           output:
             workflowRun.output,
-          error:
-            workflowRun.error,
+          error: workflowRun.error,
           triggeredBy:
             workflowRun.triggeredBy,
           startedAt:
@@ -864,146 +978,152 @@ export const workflowRouter = router({
         .limit(input.limit);
     }),
 
-  getRunById: protectedProcedure
-    .input(workflowRunIdSchema)
-    .query(async ({ ctx, input }) => {
-      const [run] = await ctx.db
-        .select()
-        .from(workflowRun)
-        .where(
-          eq(
-            workflowRun.id,
-            input.id
-          )
-        )
-        .limit(1);
+  getRunById:
+    protectedProcedure
+      .input(workflowRunIdSchema)
+      .query(
+        async ({ ctx, input }) => {
+          const [run] =
+            await ctx.db
+              .select()
+              .from(workflowRun)
+              .where(
+                eq(
+                  workflowRun.id,
+                  input.id
+                )
+              )
+              .limit(1);
 
-      if (!run) {
-        throw new TRPCError({
-          code: "NOT_FOUND",
-          message:
-            "Workflow run not found.",
-        });
-      }
+          if (!run) {
+            throw new TRPCError({
+              code: "NOT_FOUND",
+              message:
+                "Workflow run not found.",
+            });
+          }
 
-      const [existingWorkflow] =
-        await ctx.db
-          .select({
-            id: workflow.id,
-            workspaceId:
-              workflow.workspaceId,
-          })
-          .from(workflow)
-          .where(
-            eq(
-              workflow.id,
-              run.workflowId
+          const [
+            existingWorkflow,
+          ] = await ctx.db
+            .select({
+              id: workflow.id,
+              workspaceId:
+                workflow.workspaceId,
+            })
+            .from(workflow)
+            .where(
+              eq(
+                workflow.id,
+                run.workflowId
+              )
             )
-          )
-          .limit(1);
+            .limit(1);
 
-      if (!existingWorkflow) {
-        throw new TRPCError({
-          code: "NOT_FOUND",
-          message:
-            "Workflow not found.",
-        });
-      }
+          if (!existingWorkflow) {
+            throw new TRPCError({
+              code: "NOT_FOUND",
+              message:
+                "Workflow not found.",
+            });
+          }
 
-      await requireWorkspacePermission({
-        database: ctx.db,
-        workspaceId:
-          existingWorkflow.workspaceId,
-        userId:
-          ctx.session.user.id,
-        permission:
-          "workflow:read",
-      });
+          await requireWorkspacePermission(
+            {
+              database: ctx.db,
+              workspaceId:
+                existingWorkflow.workspaceId,
+              userId:
+                ctx.session.user.id,
+              permission:
+                "workflow:read",
+            }
+          );
 
-      const [
-        versionRows,
-        steps,
-        logs,
-      ] = await Promise.all([
-        ctx.db
-          .select({
-            id:
-              workflowVersion.id,
-            version:
-              workflowVersion.version,
-            definition:
-              workflowVersion.definition,
-          })
-          .from(workflowVersion)
-          .where(
-            eq(
-              workflowVersion.id,
-              run.workflowVersionId
-            )
-          )
-          .limit(1),
+          const [
+            versionRows,
+            steps,
+            logs,
+          ] = await Promise.all([
+            ctx.db
+              .select({
+                id: workflowVersion.id,
+                version:
+                  workflowVersion.version,
+                definition:
+                  workflowVersion.definition,
+              })
+              .from(
+                workflowVersion
+              )
+              .where(
+                eq(
+                  workflowVersion.id,
+                  run.workflowVersionId
+                )
+              )
+              .limit(1),
 
-        ctx.db
-          .select()
-          .from(workflowRunStep)
-          .where(
-            eq(
-              workflowRunStep.runId,
-              run.id
-            )
-          )
-          .orderBy(
-            asc(
-              workflowRunStep.createdAt
-            )
-          ),
+            ctx.db
+              .select()
+              .from(
+                workflowRunStep
+              )
+              .where(
+                eq(
+                  workflowRunStep.runId,
+                  run.id
+                )
+              )
+              .orderBy(
+                asc(
+                  workflowRunStep.createdAt
+                )
+              ),
 
-        ctx.db
-          .select()
-          .from(workflowLog)
-          .where(
-            eq(
-              workflowLog.runId,
-              run.id
-            )
-          )
-          .orderBy(
-            asc(
-              workflowLog.createdAt
-            )
-          ),
-      ]);
+            ctx.db
+              .select()
+              .from(workflowLog)
+              .where(
+                eq(
+                  workflowLog.runId,
+                  run.id
+                )
+              )
+              .orderBy(
+                asc(
+                  workflowLog.createdAt
+                )
+              ),
+          ]);
 
-      const version =
-        versionRows[0] ?? null;
+          const version =
+            versionRows[0] ?? null;
 
-      const nodeLabels =
-        createNodeLabelMap(
-          version?.definition.nodes ??
-            []
-        );
+          const nodeLabels =
+            createNodeLabelMap(
+              version?.definition
+                .nodes ?? []
+            );
 
-      return {
-        ...run,
-
-        workflowVersionNumber:
-          version?.version ?? null,
-
-        steps: steps.map(
-          (step) => ({
-            ...step,
-
-            nodeLabel:
-              nodeLabels.get(
-                step.nodeId
-              ) ??
-              step.nodeId,
-          })
-        ),
-
-        logs,
-      };
-    }),
+          return {
+            ...run,
+            workflowVersionNumber:
+              version?.version ??
+              null,
+            steps: steps.map(
+              (step) => ({
+                ...step,
+                nodeLabel:
+                  nodeLabels.get(
+                    step.nodeId
+                  ) ?? step.nodeId,
+              })
+            ),
+            logs,
+          };
+        }
+      ),
 
   archive: protectedProcedure
     .input(archiveWorkflowSchema)
@@ -1043,8 +1163,7 @@ export const workflowRouter = router({
           .update(workflow)
           .set({
             status: "ARCHIVED",
-            updatedAt:
-              new Date(),
+            updatedAt: new Date(),
           })
           .where(
             eq(
