@@ -1,8 +1,15 @@
 "use client";
 
-import { useState } from "react";
+import {
+  useRef,
+  useState,
+  type PointerEvent as ReactPointerEvent,
+  type ReactNode,
+} from "react";
 import {
   AlertTriangle,
+  ChevronDown,
+  Settings2,
   Trash2,
 } from "lucide-react";
 
@@ -21,6 +28,11 @@ import type {
   WorkflowCanvasNode,
   WorkflowNodeData,
 } from "@/features/workflow/types";
+import {
+  createActionConfiguration,
+  workflowActionCatalog,
+  type WorkflowActionType,
+} from "@/features/workflow/workflow-node-catalog";
 
 import {
   AiActionConfiguration,
@@ -80,61 +92,29 @@ type NodeConfigurationPanelProps = {
   edges: WorkflowCanvasEdge[];
   node: WorkflowCanvasNode | null;
   canEdit: boolean;
+  height: number;
+  onHeightChange: (
+    height: number
+  ) => void;
   onUpdate: (
     nodeId: string,
     data: WorkflowNodeData
   ) => void;
-  onDelete: (nodeId: string) => void;
+  onDelete: (
+    nodeId: string
+  ) => void;
 };
 
-const actionTypes = [
-  {
-    value: "NO_OP",
-    label: "Test / No-op",
-  },
-  {
-    value: "HTTP_REQUEST",
-    label: "HTTP Request",
-  },
-  {
-    value: "AI_PROMPT",
-    label: "AI Prompt",
-  },
-  {
-    value: "SLACK_MESSAGE",
-    label: "Slack Message",
-  },
-  {
-    value: "DISCORD_MESSAGE",
-    label: "Discord Message",
-  },
-  {
-    value:
-      "GOOGLE_CALENDAR_CREATE_EVENT",
-    label:
-      "Google Calendar — Create Event",
-  },
-  {
-    value: "GOOGLE_SHEETS_APPEND_ROW",
-    label: "Google Sheets — Add Row",
-  },
-  {
-    value: "GMAIL_SEND_EMAIL",
-    label: "Gmail — Send Email",
-  },
-  {
-    value: "GITHUB_CREATE_ISSUE",
-    label: "GitHub — Create Issue",
-  },
-  {
-    value: "JIRA_CREATE_ISSUE",
-    label: "Jira — Create Issue",
-  },
-  {
-    value: "TRELLO_CREATE_CARD",
-    label: "Trello — Create Card",
-  },
-] as const;
+type ConfigurationSectionProps = {
+  title: string;
+  description?: string;
+  defaultOpen?: boolean;
+  children: ReactNode;
+};
+
+const DEFAULT_PANEL_HEIGHT = 320;
+const MIN_PANEL_HEIGHT = 220;
+const MAX_PANEL_HEIGHT = 680;
 
 const triggerTypes = [
   {
@@ -142,8 +122,10 @@ const triggerTypes = [
     label: "Manual trigger",
   },
   {
-    value: "GOOGLE_SHEETS_NEW_ROW",
-    label: "Google Sheets — New Row",
+    value:
+      "GOOGLE_SHEETS_NEW_ROW",
+    label:
+      "Google Sheets — New Row",
   },
   {
     value:
@@ -175,288 +157,103 @@ const triggerTypes = [
   },
 ] as const;
 
-export function NodeConfigurationPanel({
-  workspaceId,
-  nodes,
-  edges,
-  node,
-  canEdit,
-  onUpdate,
-  onDelete,
-}: NodeConfigurationPanelProps) {
-  const [
-    deleteDialogOpen,
-    setDeleteDialogOpen,
-  ] = useState(false);
-
-  if (!node) {
-    return (
-      <aside className="flex w-80 shrink-0 items-center justify-center border-l bg-background p-6">
-        <p className="text-center text-sm text-muted-foreground">
-          Select a node to configure it.
-        </p>
-      </aside>
+function clampPanelHeight(
+  height: number
+): number {
+  if (
+    typeof window === "undefined"
+  ) {
+    return Math.min(
+      MAX_PANEL_HEIGHT,
+      Math.max(
+        MIN_PANEL_HEIGHT,
+        height
+      )
     );
   }
 
-  const selectedNode = node;
+  const viewportMaximum =
+    Math.floor(
+      window.innerHeight * 0.7
+    );
 
-  const actionType =
-    typeof selectedNode.data
-      .configuration?.actionType ===
-    "string"
-      ? selectedNode.data
-          .configuration.actionType
-      : "NO_OP";
+  const maximumHeight =
+    Math.max(
+      MIN_PANEL_HEIGHT,
+      Math.min(
+        MAX_PANEL_HEIGHT,
+        viewportMaximum
+      )
+    );
 
-  const triggerType =
-    typeof selectedNode.data
-      .configuration?.triggerType ===
-    "string"
-      ? selectedNode.data
-          .configuration.triggerType
-      : "MANUAL";
+  return Math.min(
+    maximumHeight,
+    Math.max(
+      MIN_PANEL_HEIGHT,
+      height
+    )
+  );
+}
 
-  function updateData(
-    changes: Partial<WorkflowNodeData>
-  ) {
-    onUpdate(selectedNode.id, {
-      ...selectedNode.data,
-      ...changes,
-    });
-  }
+function ConfigurationSection({
+  title,
+  description,
+  defaultOpen = false,
+  children,
+}: ConfigurationSectionProps) {
+  const [open, setOpen] =
+    useState(defaultOpen);
 
-  function updateConfiguration(
-    changes: Record<string, unknown>
-  ) {
-    updateData({
-      configuration: {
-        ...selectedNode.data
-          .configuration,
-        ...changes,
-      },
-    });
-  }
+  return (
+    <section className="overflow-hidden rounded-lg border bg-card">
+      <button
+        type="button"
+        aria-expanded={open}
+        onClick={() =>
+          setOpen(
+            (current) => !current
+          )
+        }
+        className="flex w-full items-center justify-between gap-4 px-4 py-3 text-left transition hover:bg-muted/50"
+      >
+        <span className="min-w-0">
+          <span className="block text-sm font-medium">
+            {title}
+          </span>
 
-  function changeActionType(
-    nextActionType: string
-  ) {
-    if (
-      nextActionType ===
-      "HTTP_REQUEST"
-    ) {
-      updateData({
-        configuration: {
-          actionType: "HTTP_REQUEST",
-          method: "GET",
-          url: "",
-          headersJson: "{}",
-          body: "",
-          timeoutMs: 10_000,
-          failOnHttpError: true,
-        },
-      });
+          {description && (
+            <span className="mt-0.5 block text-xs leading-5 text-muted-foreground">
+              {description}
+            </span>
+          )}
+        </span>
 
-      return;
-    }
+        <ChevronDown
+          className={`size-4 shrink-0 text-muted-foreground transition-transform ${
+            open
+              ? "rotate-180"
+              : ""
+          }`}
+        />
+      </button>
 
-    if (
-      nextActionType === "AI_PROMPT"
-    ) {
-      updateData({
-        configuration: {
-          actionType: "AI_PROMPT",
-          provider: "GEMINI",
-          model:
-            "gemini-3-flash-preview",
-          systemPrompt:
-            "You are a helpful assistant.",
-          prompt:
-            "Process the following workflow input:\n\n{{input}}",
-          maxOutputTokens: 1_000,
-        },
-      });
+      {open && (
+        <div className="border-t p-4">
+          {children}
+        </div>
+      )}
+    </section>
+  );
+}
 
-      return;
-    }
-
-    if (
-      nextActionType ===
-        "SLACK_MESSAGE" ||
-      nextActionType ===
-        "DISCORD_MESSAGE"
-    ) {
-      updateData({
-        configuration: {
-          actionType: nextActionType,
-          integrationId: "",
-          message:
-            "Workflow completed:\n\n{{input}}",
-        },
-      });
-
-      return;
-    }
-
-    if (
-      nextActionType ===
-      "GOOGLE_CALENDAR_CREATE_EVENT"
-    ) {
-      updateData({
-        configuration: {
-          actionType:
-            "GOOGLE_CALENDAR_CREATE_EVENT",
-          integrationId: "",
-          calendarId: "primary",
-          title: "Workflow event",
-          description:
-            "Created by Synapse",
-          location: "",
-          startDateTime: "",
-          endDateTime: "",
-          timeZone:
-            "Asia/Kolkata",
-          attendees: "",
-          sendUpdates: false,
-        },
-      });
-
-      return;
-    }
-
-    if (
-      nextActionType ===
-      "GOOGLE_SHEETS_APPEND_ROW"
-    ) {
-      updateData({
-        configuration: {
-          actionType:
-            "GOOGLE_SHEETS_APPEND_ROW",
-          integrationId: "",
-          spreadsheetId: "",
-          range: "Sheet1!A:Z",
-          valuesJson:
-            '["{{input.name}}", "{{input.email}}"]',
-          valueInputOption:
-            "USER_ENTERED",
-        },
-      });
-
-      return;
-    }
-
-    if (
-      nextActionType ===
-      "GMAIL_SEND_EMAIL"
-    ) {
-      updateData({
-        configuration: {
-          actionType:
-            "GMAIL_SEND_EMAIL",
-          integrationId: "",
-          to: "",
-          cc: "",
-          bcc: "",
-          replyTo: "",
-          subject:
-            "Synapse workflow notification",
-          body:
-            "Workflow completed:\n\n{{input}}",
-          contentType:
-            "PLAIN_TEXT",
-        },
-      });
-
-      return;
-    }
-
-    if (
-      nextActionType ===
-      "GITHUB_CREATE_ISSUE"
-    ) {
-      updateData({
-        configuration: {
-          actionType:
-            "GITHUB_CREATE_ISSUE",
-          integrationId: "",
-          repository: "",
-          title:
-            "Issue from Synapse workflow",
-          body:
-            "Created automatically by Synapse.\n\n{{input}}",
-          labels: "",
-          assignees: "",
-        },
-      });
-
-      return;
-    }
-
-    if (
-      nextActionType ===
-      "JIRA_CREATE_ISSUE"
-    ) {
-      updateData({
-        configuration: {
-          actionType:
-            "JIRA_CREATE_ISSUE",
-          integrationId: "",
-          projectKey: "",
-          issueTypeId: "",
-          summary:
-            "Issue from Synapse workflow",
-          description:
-            "Created automatically by Synapse.\n\n{{input}}",
-          labels: "",
-          priorityId: "",
-          assigneeAccountId: "",
-        },
-      });
-
-      return;
-    }
-
-    if (
-      nextActionType ===
-      "TRELLO_CREATE_CARD"
-    ) {
-      updateData({
-        configuration: {
-          actionType:
-            "TRELLO_CREATE_CARD",
-          integrationId: "",
-          listId: "",
-          name:
-            "Card from Synapse workflow",
-          description:
-            "Created automatically by Synapse.\n\n{{input}}",
-          position: "bottom",
-          due: "",
-          dueComplete: false,
-          memberIds: "",
-          labelIds: "",
-        },
-      });
-
-      return;
-    }
-
-    updateData({
-      configuration: {
-        actionType: nextActionType,
-      },
-    });
-  }
-
-  function changeTriggerType(
-    nextTriggerType: string
-  ) {
-    if (
-      nextTriggerType ===
-      "GOOGLE_SHEETS_NEW_ROW"
-    ) {
-      updateData({
-        label: "Google Sheets New Row",
+function createTriggerData(
+  triggerType: string
+): WorkflowNodeData {
+  switch (triggerType) {
+    case "GOOGLE_SHEETS_NEW_ROW":
+      return {
+        label:
+          "Google Sheets New Row",
         description:
           "Starts when a new row is detected in Google Sheets.",
         configuration: {
@@ -469,16 +266,10 @@ export function NodeConfigurationPanel({
           startMode: "FROM_NOW",
           pollIntervalMinutes: 1,
         },
-      });
+      };
 
-      return;
-    }
-
-    if (
-      nextTriggerType ===
-      "GOOGLE_CALENDAR_NEW_EVENT"
-    ) {
-      updateData({
+    case "GOOGLE_CALENDAR_NEW_EVENT":
+      return {
         label:
           "Google Calendar New Event",
         description:
@@ -491,16 +282,10 @@ export function NodeConfigurationPanel({
           startMode: "FROM_NOW",
           pollIntervalMinutes: 1,
         },
-      });
+      };
 
-      return;
-    }
-
-    if (
-      nextTriggerType ===
-      "GOOGLE_FORMS_NEW_RESPONSE"
-    ) {
-      updateData({
+    case "GOOGLE_FORMS_NEW_RESPONSE":
+      return {
         label:
           "Google Forms New Response",
         description:
@@ -513,16 +298,10 @@ export function NodeConfigurationPanel({
           startMode: "FROM_NOW",
           pollIntervalMinutes: 1,
         },
-      });
+      };
 
-      return;
-    }
-
-    if (
-      nextTriggerType ===
-      "GMAIL_NEW_EMAIL"
-    ) {
-      updateData({
+    case "GMAIL_NEW_EMAIL":
+      return {
         label: "Gmail New Email",
         description:
           "Starts when a new matching email is received in Gmail.",
@@ -535,17 +314,12 @@ export function NodeConfigurationPanel({
           startMode: "FROM_NOW",
           pollIntervalMinutes: 1,
         },
-      });
+      };
 
-      return;
-    }
-
-    if (
-      nextTriggerType ===
-      "GITHUB_NEW_ISSUE"
-    ) {
-      updateData({
-        label: "GitHub New Issue",
+    case "GITHUB_NEW_ISSUE":
+      return {
+        label:
+          "GitHub New Issue",
         description:
           "Starts when a new issue is created in a GitHub repository.",
         configuration: {
@@ -557,16 +331,10 @@ export function NodeConfigurationPanel({
           startMode: "FROM_NOW",
           pollIntervalMinutes: 1,
         },
-      });
+      };
 
-      return;
-    }
-
-    if (
-      nextTriggerType ===
-      "JIRA_NEW_ISSUE"
-    ) {
-      updateData({
+    case "JIRA_NEW_ISSUE":
+      return {
         label: "Jira New Issue",
         description:
           "Starts when a new issue is created in a Jira project.",
@@ -578,16 +346,10 @@ export function NodeConfigurationPanel({
           startMode: "FROM_NOW",
           pollIntervalMinutes: 1,
         },
-      });
+      };
 
-      return;
-    }
-
-    if (
-      nextTriggerType ===
-      "TRELLO_NEW_CARD"
-    ) {
-      updateData({
+    case "TRELLO_NEW_CARD":
+      return {
         label: "Trello New Card",
         description:
           "Starts when a new card is created on a Trello board.",
@@ -600,19 +362,173 @@ export function NodeConfigurationPanel({
           startMode: "FROM_NOW",
           pollIntervalMinutes: 1,
         },
-      });
+      };
 
+    case "MANUAL":
+    default:
+      return {
+        label: "Manual Trigger",
+        description:
+          "Starts when the workflow is run manually.",
+        configuration: {
+          triggerType: "MANUAL",
+        },
+      };
+  }
+}
+
+export function NodeConfigurationPanel({
+  workspaceId,
+  nodes,
+  edges,
+  node,
+  canEdit,
+  height,
+  onHeightChange,
+  onUpdate,
+  onDelete,
+}: NodeConfigurationPanelProps) {
+  const [
+    deleteDialogOpen,
+    setDeleteDialogOpen,
+  ] = useState(false);
+
+  const resizeState = useRef<{
+    startY: number;
+    startHeight: number;
+  } | null>(null);
+
+  function handleResizeStart(
+    event: ReactPointerEvent<HTMLButtonElement>
+  ) {
+    event.preventDefault();
+
+    resizeState.current = {
+      startY: event.clientY,
+      startHeight: height,
+    };
+
+    event.currentTarget.setPointerCapture(
+      event.pointerId
+    );
+  }
+
+  function handleResizeMove(
+    event: ReactPointerEvent<HTMLButtonElement>
+  ) {
+    const resize =
+      resizeState.current;
+
+    if (!resize) {
+      return;
+    }
+
+    const movement =
+      resize.startY -
+      event.clientY;
+
+    onHeightChange(
+      clampPanelHeight(
+        resize.startHeight +
+          movement
+      )
+    );
+  }
+
+  function handleResizeEnd(
+    event: ReactPointerEvent<HTMLButtonElement>
+  ) {
+    resizeState.current = null;
+
+    if (
+      event.currentTarget.hasPointerCapture(
+        event.pointerId
+      )
+    ) {
+      event.currentTarget.releasePointerCapture(
+        event.pointerId
+      );
+    }
+  }
+
+  if (!node) {
+    return null;
+  }
+
+  const selectedNode = node;
+
+  const configuration =
+    selectedNode.data
+      .configuration ?? {};
+
+  const actionType =
+    typeof configuration.actionType ===
+    "string"
+      ? configuration.actionType
+      : "NO_OP";
+
+  const triggerType =
+    typeof configuration.triggerType ===
+    "string"
+      ? configuration.triggerType
+      : "MANUAL";
+
+  function updateData(
+    changes: Partial<WorkflowNodeData>
+  ) {
+    onUpdate(selectedNode.id, {
+      ...selectedNode.data,
+      ...changes,
+    });
+  }
+
+  function updateConfiguration(
+    changes: Record<
+      string,
+      unknown
+    >
+  ) {
+    updateData({
+      configuration: {
+        ...configuration,
+        ...changes,
+      },
+    });
+  }
+
+  function changeActionType(
+    nextActionType: string
+  ) {
+    const action =
+      workflowActionCatalog.find(
+        (candidate) =>
+          candidate.actionType ===
+          nextActionType
+      );
+
+    if (!action) {
       return;
     }
 
     updateData({
-      label: "Manual Trigger",
+      label: action.label,
       description:
-        "Starts when the workflow is run manually.",
-      configuration: {
-        triggerType: "MANUAL",
-      },
+        action.description,
+      configuration:
+        createActionConfiguration(
+          action.actionType as WorkflowActionType
+        ),
     });
+  }
+
+  function changeTriggerType(
+    nextTriggerType: string
+  ) {
+    updateData(
+      createTriggerData(
+        nextTriggerType
+      )
+    );
   }
 
   function confirmDelete() {
@@ -622,80 +538,93 @@ export function NodeConfigurationPanel({
 
   return (
     <>
-      <aside className="w-80 shrink-0 overflow-y-auto border-l bg-background">
-        <div className="border-b p-4">
-          <p className="text-xs font-medium uppercase text-muted-foreground">
-            {selectedNode.type}
-          </p>
+      <section
+        style={{
+          height:
+            clampPanelHeight(height),
+        }}
+        className="relative flex shrink-0 animate-in flex-col border-t bg-background duration-200 slide-in-from-bottom-4"
+      >
+        <button
+          type="button"
+          aria-label="Resize configuration panel"
+          title="Drag to resize. Double-click to reset."
+          onPointerDown={
+            handleResizeStart
+          }
+          onPointerMove={
+            handleResizeMove
+          }
+          onPointerUp={
+            handleResizeEnd
+          }
+          onPointerCancel={
+            handleResizeEnd
+          }
+          onDoubleClick={() =>
+            onHeightChange(
+              DEFAULT_PANEL_HEIGHT
+            )
+          }
+          className="group absolute -top-2 left-0 right-0 z-30 flex h-4 touch-none cursor-ns-resize items-center justify-center"
+        >
+          <span className="h-1 w-12 rounded-full bg-border transition-colors group-hover:bg-primary group-active:bg-primary" />
+        </button>
 
-          <h3 className="mt-1 font-semibold">
-            Configure node
-          </h3>
+        <div className="flex shrink-0 items-center justify-between gap-4 border-b bg-background px-4 py-3">
+          <div className="flex min-w-0 items-center gap-3">
+            <span className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
+              <Settings2 className="size-4" />
+            </span>
+
+            <div className="min-w-0">
+              <div className="flex items-center gap-2">
+                <h3 className="truncate text-sm font-semibold">
+                  {
+                    selectedNode.data
+                      .label
+                  }
+                </h3>
+
+                <span className="rounded-full bg-muted px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
+                  {selectedNode.type}
+                </span>
+              </div>
+
+              <p className="text-xs text-muted-foreground">
+                Configure this workflow
+                step.
+              </p>
+            </div>
+          </div>
+
+          <span className="shrink-0 rounded-full border bg-muted/30 px-2.5 py-1 text-xs text-muted-foreground">
+            {canEdit
+              ? "Editable"
+              : "Read only"}
+          </span>
         </div>
 
-        <div className="space-y-5 p-4">
-          <div className="space-y-2">
-            <label
-              htmlFor="node-label"
-              className="text-sm font-medium"
-            >
-              Label
-            </label>
+        <div className="min-h-0 flex-1 overflow-y-auto">
+          <div className="mx-auto w-full max-w-5xl space-y-4 p-4">
+            <div className="space-y-2">
+              <label
+                htmlFor={
+                  selectedNode.type ===
+                  "trigger"
+                    ? "trigger-type"
+                    : "action-type"
+                }
+                className="text-sm font-medium"
+              >
+                {selectedNode.type ===
+                "trigger"
+                  ? "Trigger type"
+                  : "Action type"}
+              </label>
 
-            <Input
-              id="node-label"
-              value={
-                selectedNode.data.label
-              }
-              maxLength={100}
-              disabled={!canEdit}
-              onChange={(event) =>
-                updateData({
-                  label:
-                    event.target.value,
-                })
-              }
-            />
-          </div>
-
-          <div className="space-y-2">
-            <label
-              htmlFor="node-description"
-              className="text-sm font-medium"
-            >
-              Description
-            </label>
-
-            <textarea
-              id="node-description"
-              value={
-                selectedNode.data
-                  .description ?? ""
-              }
-              rows={4}
-              maxLength={500}
-              disabled={!canEdit}
-              onChange={(event) =>
-                updateData({
-                  description:
-                    event.target.value,
-                })
-              }
-              className="w-full resize-none rounded-md border bg-background px-3 py-2 text-sm outline-none focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/50 disabled:cursor-not-allowed disabled:opacity-50"
-            />
-          </div>
-
-          {selectedNode.type ===
-          "trigger" ? (
-            <>
-              <div className="space-y-2">
-                <label
-                  htmlFor="trigger-type"
-                  className="text-sm font-medium"
-                >
-                  Trigger type
-                </label>
-
+              {selectedNode.type ===
+              "trigger" ? (
                 <select
                   id="trigger-type"
                   value={triggerType}
@@ -710,131 +639,19 @@ export function NodeConfigurationPanel({
                   {triggerTypes.map(
                     (trigger) => (
                       <option
-                        key={trigger.value}
-                        value={trigger.value}
+                        key={
+                          trigger.value
+                        }
+                        value={
+                          trigger.value
+                        }
                       >
                         {trigger.label}
                       </option>
                     )
                   )}
                 </select>
-              </div>
-
-              {triggerType ===
-                "GOOGLE_SHEETS_NEW_ROW" && (
-                <GoogleSheetsTriggerConfiguration
-                  workspaceId={workspaceId}
-                  configuration={
-                    selectedNode.data
-                      .configuration ?? {}
-                  }
-                  canEdit={canEdit}
-                  onChange={
-                    updateConfiguration
-                  }
-                />
-              )}
-
-              {triggerType ===
-                "GOOGLE_CALENDAR_NEW_EVENT" && (
-                <GoogleCalendarTriggerConfiguration
-                  workspaceId={workspaceId}
-                  configuration={
-                    selectedNode.data
-                      .configuration ?? {}
-                  }
-                  canEdit={canEdit}
-                  onChange={
-                    updateConfiguration
-                  }
-                />
-              )}
-
-              {triggerType ===
-                "GOOGLE_FORMS_NEW_RESPONSE" && (
-                <GoogleFormsTriggerConfiguration
-                  workspaceId={workspaceId}
-                  configuration={
-                    selectedNode.data
-                      .configuration ?? {}
-                  }
-                  canEdit={canEdit}
-                  onChange={
-                    updateConfiguration
-                  }
-                />
-              )}
-
-              {triggerType ===
-                "GMAIL_NEW_EMAIL" && (
-                <GmailTriggerConfiguration
-                  workspaceId={workspaceId}
-                  configuration={
-                    selectedNode.data
-                      .configuration ?? {}
-                  }
-                  canEdit={canEdit}
-                  onChange={
-                    updateConfiguration
-                  }
-                />
-              )}
-
-              {triggerType ===
-                "GITHUB_NEW_ISSUE" && (
-                <GitHubTriggerConfiguration
-                  workspaceId={workspaceId}
-                  configuration={
-                    selectedNode.data
-                      .configuration ?? {}
-                  }
-                  canEdit={canEdit}
-                  onChange={
-                    updateConfiguration
-                  }
-                />
-              )}
-
-              {triggerType ===
-                "JIRA_NEW_ISSUE" && (
-                <JiraTriggerConfiguration
-                  workspaceId={workspaceId}
-                  configuration={
-                    selectedNode.data
-                      .configuration ?? {}
-                  }
-                  canEdit={canEdit}
-                  onChange={
-                    updateConfiguration
-                  }
-                />
-              )}
-
-              {triggerType ===
-                "TRELLO_NEW_CARD" && (
-                <TrelloTriggerConfiguration
-                  workspaceId={workspaceId}
-                  configuration={
-                    selectedNode.data
-                      .configuration ?? {}
-                  }
-                  canEdit={canEdit}
-                  onChange={
-                    updateConfiguration
-                  }
-                />
-              )}
-            </>
-          ) : (
-            <>
-              <div className="space-y-2">
-                <label
-                  htmlFor="action-type"
-                  className="text-sm font-medium"
-                >
-                  Action type
-                </label>
-
+              ) : (
                 <select
                   id="action-type"
                   value={actionType}
@@ -846,203 +663,454 @@ export function NodeConfigurationPanel({
                   }
                   className="h-9 w-full rounded-md border bg-background px-3 text-sm outline-none focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/50 disabled:cursor-not-allowed disabled:opacity-50"
                 >
-                  {actionTypes.map(
+                  {workflowActionCatalog.map(
                     (action) => (
                       <option
-                        key={action.value}
-                        value={action.value}
+                        key={
+                          action.actionType
+                        }
+                        value={
+                          action.actionType
+                        }
                       >
                         {action.label}
                       </option>
                     )
                   )}
                 </select>
-              </div>
-
-              <DataMappingPanel
-                key={selectedNode.id}
-                node={selectedNode}
-                nodes={nodes}
-                edges={edges}
-              />
-
-              {actionType ===
-                "HTTP_REQUEST" && (
-                <HttpActionConfiguration
-                  configuration={
-                    selectedNode.data
-                      .configuration ?? {}
-                  }
-                  canEdit={canEdit}
-                  onChange={
-                    updateConfiguration
-                  }
-                />
               )}
+            </div>
 
-              {actionType ===
-                "AI_PROMPT" && (
-                <AiActionConfiguration
-                  configuration={
-                    selectedNode.data
-                      .configuration ?? {}
-                  }
-                  canEdit={canEdit}
-                  onChange={
-                    updateConfiguration
-                  }
-                />
-              )}
-
-              {actionType ===
-                "SLACK_MESSAGE" && (
-                <MessagingActionConfiguration
-                  workspaceId={
-                    workspaceId
-                  }
-                  provider="SLACK"
-                  configuration={
-                    selectedNode.data
-                      .configuration ?? {}
-                  }
-                  canEdit={canEdit}
-                  onChange={
-                    updateConfiguration
-                  }
-                />
-              )}
-
-              {actionType ===
-                "DISCORD_MESSAGE" && (
-                <MessagingActionConfiguration
-                  workspaceId={
-                    workspaceId
-                  }
-                  provider="DISCORD"
-                  configuration={
-                    selectedNode.data
-                      .configuration ?? {}
-                  }
-                  canEdit={canEdit}
-                  onChange={
-                    updateConfiguration
-                  }
-                />
-              )}
-
-              {actionType ===
-                "GOOGLE_CALENDAR_CREATE_EVENT" && (
-                <GoogleCalendarActionConfiguration
-                  workspaceId={
-                    workspaceId
-                  }
-                  configuration={
-                    selectedNode.data
-                      .configuration ?? {}
-                  }
-                  canEdit={canEdit}
-                  onChange={
-                    updateConfiguration
-                  }
-                />
-              )}
-
-              {actionType ===
-                "GOOGLE_SHEETS_APPEND_ROW" && (
-                <GoogleSheetsActionConfiguration
-                  workspaceId={workspaceId}
-                  configuration={
-                    selectedNode.data
-                      .configuration ?? {}
-                  }
-                  canEdit={canEdit}
-                  onChange={
-                    updateConfiguration
-                  }
-                />
-              )}
-
-              {actionType ===
-                "GMAIL_SEND_EMAIL" && (
-                <GmailActionConfiguration
-                  workspaceId={workspaceId}
-                  configuration={
-                    selectedNode.data
-                      .configuration ?? {}
-                  }
-                  canEdit={canEdit}
-                  onChange={
-                    updateConfiguration
-                  }
-                />
-              )}
-
-              {actionType ===
-                "GITHUB_CREATE_ISSUE" && (
-                <GitHubActionConfiguration
-                  workspaceId={workspaceId}
-                  configuration={
-                    selectedNode.data
-                      .configuration ?? {}
-                  }
-                  canEdit={canEdit}
-                  onChange={
-                    updateConfiguration
-                  }
-                />
-              )}
-
-              {actionType ===
-                "JIRA_CREATE_ISSUE" && (
-                <JiraActionConfiguration
-                  workspaceId={workspaceId}
-                  configuration={
-                    selectedNode.data
-                      .configuration ?? {}
-                  }
-                  canEdit={canEdit}
-                  onChange={
-                    updateConfiguration
-                  }
-                />
-              )}
-
-              {actionType ===
-                "TRELLO_CREATE_CARD" && (
-                <TrelloActionConfiguration
-                  workspaceId={workspaceId}
-                  configuration={
-                    selectedNode.data
-                      .configuration ?? {}
-                  }
-                  canEdit={canEdit}
-                  onChange={
-                    updateConfiguration
-                  }
-                />
-              )}
-            </>
-          )}
-
-          {canEdit &&
-            selectedNode.type !==
+            {selectedNode.type ===
               "trigger" && (
-              <Button
-                type="button"
-                variant="destructive"
-                className="w-full"
-                onClick={() =>
-                  setDeleteDialogOpen(
-                    true
-                  )
-                }
-              >
-                <Trash2 className="size-4" />
-                Delete node
-              </Button>
+              <>
+                {triggerType ===
+                  "MANUAL" && (
+                  <div className="rounded-lg border border-dashed bg-muted/20 p-4 text-sm text-muted-foreground">
+                    Manual triggers do
+                    not require an
+                    external integration.
+                  </div>
+                )}
+
+                {triggerType ===
+                  "GOOGLE_SHEETS_NEW_ROW" && (
+                  <GoogleSheetsTriggerConfiguration
+                    workspaceId={
+                      workspaceId
+                    }
+                    configuration={
+                      configuration
+                    }
+                    canEdit={
+                      canEdit
+                    }
+                    onChange={
+                      updateConfiguration
+                    }
+                  />
+                )}
+
+                {triggerType ===
+                  "GOOGLE_CALENDAR_NEW_EVENT" && (
+                  <GoogleCalendarTriggerConfiguration
+                    workspaceId={
+                      workspaceId
+                    }
+                    configuration={
+                      configuration
+                    }
+                    canEdit={
+                      canEdit
+                    }
+                    onChange={
+                      updateConfiguration
+                    }
+                  />
+                )}
+
+                {triggerType ===
+                  "GOOGLE_FORMS_NEW_RESPONSE" && (
+                  <GoogleFormsTriggerConfiguration
+                    workspaceId={
+                      workspaceId
+                    }
+                    configuration={
+                      configuration
+                    }
+                    canEdit={
+                      canEdit
+                    }
+                    onChange={
+                      updateConfiguration
+                    }
+                  />
+                )}
+
+                {triggerType ===
+                  "GMAIL_NEW_EMAIL" && (
+                  <GmailTriggerConfiguration
+                    workspaceId={
+                      workspaceId
+                    }
+                    configuration={
+                      configuration
+                    }
+                    canEdit={
+                      canEdit
+                    }
+                    onChange={
+                      updateConfiguration
+                    }
+                  />
+                )}
+
+                {triggerType ===
+                  "GITHUB_NEW_ISSUE" && (
+                  <GitHubTriggerConfiguration
+                    workspaceId={
+                      workspaceId
+                    }
+                    configuration={
+                      configuration
+                    }
+                    canEdit={
+                      canEdit
+                    }
+                    onChange={
+                      updateConfiguration
+                    }
+                  />
+                )}
+
+                {triggerType ===
+                  "JIRA_NEW_ISSUE" && (
+                  <JiraTriggerConfiguration
+                    workspaceId={
+                      workspaceId
+                    }
+                    configuration={
+                      configuration
+                    }
+                    canEdit={
+                      canEdit
+                    }
+                    onChange={
+                      updateConfiguration
+                    }
+                  />
+                )}
+
+                {triggerType ===
+                  "TRELLO_NEW_CARD" && (
+                  <TrelloTriggerConfiguration
+                    workspaceId={
+                      workspaceId
+                    }
+                    configuration={
+                      configuration
+                    }
+                    canEdit={
+                      canEdit
+                    }
+                    onChange={
+                      updateConfiguration
+                    }
+                  />
+                )}
+              </>
             )}
+
+            {selectedNode.type ===
+              "action" && (
+              <>
+                {actionType ===
+                  "NO_OP" && (
+                  <div className="rounded-lg border border-dashed bg-muted/20 p-4 text-sm text-muted-foreground">
+                    This step passes its
+                    input through without
+                    changing it.
+                  </div>
+                )}
+
+                {actionType ===
+                  "HTTP_REQUEST" && (
+                  <HttpActionConfiguration
+                    configuration={
+                      configuration
+                    }
+                    canEdit={
+                      canEdit
+                    }
+                    onChange={
+                      updateConfiguration
+                    }
+                  />
+                )}
+
+                {actionType ===
+                  "AI_PROMPT" && (
+                  <AiActionConfiguration
+                    configuration={
+                      configuration
+                    }
+                    canEdit={
+                      canEdit
+                    }
+                    onChange={
+                      updateConfiguration
+                    }
+                  />
+                )}
+
+                {actionType ===
+                  "SLACK_MESSAGE" && (
+                  <MessagingActionConfiguration
+                    workspaceId={
+                      workspaceId
+                    }
+                    provider="SLACK"
+                    configuration={
+                      configuration
+                    }
+                    canEdit={
+                      canEdit
+                    }
+                    onChange={
+                      updateConfiguration
+                    }
+                  />
+                )}
+
+                {actionType ===
+                  "DISCORD_MESSAGE" && (
+                  <MessagingActionConfiguration
+                    workspaceId={
+                      workspaceId
+                    }
+                    provider="DISCORD"
+                    configuration={
+                      configuration
+                    }
+                    canEdit={
+                      canEdit
+                    }
+                    onChange={
+                      updateConfiguration
+                    }
+                  />
+                )}
+
+                {actionType ===
+                  "GOOGLE_CALENDAR_CREATE_EVENT" && (
+                  <GoogleCalendarActionConfiguration
+                    workspaceId={
+                      workspaceId
+                    }
+                    configuration={
+                      configuration
+                    }
+                    canEdit={
+                      canEdit
+                    }
+                    onChange={
+                      updateConfiguration
+                    }
+                  />
+                )}
+
+                {actionType ===
+                  "GOOGLE_SHEETS_APPEND_ROW" && (
+                  <GoogleSheetsActionConfiguration
+                    workspaceId={
+                      workspaceId
+                    }
+                    configuration={
+                      configuration
+                    }
+                    canEdit={
+                      canEdit
+                    }
+                    onChange={
+                      updateConfiguration
+                    }
+                  />
+                )}
+
+                {actionType ===
+                  "GMAIL_SEND_EMAIL" && (
+                  <GmailActionConfiguration
+                    workspaceId={
+                      workspaceId
+                    }
+                    configuration={
+                      configuration
+                    }
+                    canEdit={
+                      canEdit
+                    }
+                    onChange={
+                      updateConfiguration
+                    }
+                  />
+                )}
+
+                {actionType ===
+                  "GITHUB_CREATE_ISSUE" && (
+                  <GitHubActionConfiguration
+                    workspaceId={
+                      workspaceId
+                    }
+                    configuration={
+                      configuration
+                    }
+                    canEdit={
+                      canEdit
+                    }
+                    onChange={
+                      updateConfiguration
+                    }
+                  />
+                )}
+
+                {actionType ===
+                  "JIRA_CREATE_ISSUE" && (
+                  <JiraActionConfiguration
+                    workspaceId={
+                      workspaceId
+                    }
+                    configuration={
+                      configuration
+                    }
+                    canEdit={
+                      canEdit
+                    }
+                    onChange={
+                      updateConfiguration
+                    }
+                  />
+                )}
+
+                {actionType ===
+                  "TRELLO_CREATE_CARD" && (
+                  <TrelloActionConfiguration
+                    workspaceId={
+                      workspaceId
+                    }
+                    configuration={
+                      configuration
+                    }
+                    canEdit={
+                      canEdit
+                    }
+                    onChange={
+                      updateConfiguration
+                    }
+                  />
+                )}
+              </>
+            )}
+
+            <ConfigurationSection
+              title="Node details"
+              description="Change the label and description displayed on the canvas."
+            >
+              <div className="grid gap-4 md:grid-cols-2">
+                <div className="space-y-2">
+                  <label
+                    htmlFor="node-label"
+                    className="text-sm font-medium"
+                  >
+                    Label
+                  </label>
+
+                  <Input
+                    id="node-label"
+                    value={
+                      selectedNode.data
+                        .label
+                    }
+                    maxLength={100}
+                    disabled={!canEdit}
+                    onChange={(event) =>
+                      updateData({
+                        label:
+                          event.target
+                            .value,
+                      })
+                    }
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <label
+                    htmlFor="node-description"
+                    className="text-sm font-medium"
+                  >
+                    Description
+                  </label>
+
+                  <textarea
+                    id="node-description"
+                    value={
+                      selectedNode.data
+                        .description ?? ""
+                    }
+                    rows={3}
+                    maxLength={500}
+                    disabled={!canEdit}
+                    onChange={(event) =>
+                      updateData({
+                        description:
+                          event.target
+                            .value,
+                      })
+                    }
+                    className="w-full resize-y rounded-md border bg-background px-3 py-2 text-sm outline-none focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/50 disabled:cursor-not-allowed disabled:opacity-50"
+                  />
+                </div>
+              </div>
+            </ConfigurationSection>
+
+            {selectedNode.type ===
+              "action" && (
+              <ConfigurationSection
+                title="Data mapping"
+                description="Use output from the trigger or an earlier action in this step."
+              >
+                <DataMappingPanel
+                  key={
+                    selectedNode.id
+                  }
+                  node={selectedNode}
+                  nodes={nodes}
+                  edges={edges}
+                />
+              </ConfigurationSection>
+            )}
+
+            {canEdit &&
+              selectedNode.type !==
+                "trigger" && (
+                <div className="flex justify-end border-t pt-4">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    className="border-destructive/40 text-destructive hover:bg-destructive/10 hover:text-destructive"
+                    onClick={() =>
+                      setDeleteDialogOpen(
+                        true
+                      )
+                    }
+                  >
+                    <Trash2 className="size-4" />
+                    Delete node
+                  </Button>
+                </div>
+              )}
+          </div>
         </div>
-      </aside>
+      </section>
 
       <Dialog
         open={deleteDialogOpen}
@@ -1063,10 +1131,10 @@ export function NodeConfigurationPanel({
             <DialogDescription>
               This will remove “
               {selectedNode.data.label}”
-              and all connections attached
-              to it. The change will become
-              permanent after you save the
-              workflow.
+              and every connection
+              attached to it. The change
+              becomes permanent after
+              saving the workflow.
             </DialogDescription>
           </DialogHeader>
 

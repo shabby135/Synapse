@@ -3,9 +3,19 @@ import {
   Position,
   type NodeProps,
 } from "@xyflow/react";
-import { Zap } from "lucide-react";
+import {
+  AlertCircle,
+  Check,
+  Zap,
+} from "lucide-react";
 
-import type { WorkflowNodeData } from "@/features/workflow/types";
+import type {
+  WorkflowNodeData,
+} from "@/features/workflow/types";
+import {
+  actionNeedsIntegration,
+  getWorkflowAction,
+} from "@/features/workflow/workflow-node-catalog";
 
 export function ActionNode({
   data,
@@ -14,12 +24,34 @@ export function ActionNode({
   const nodeData =
     data as WorkflowNodeData;
 
+  const configuration =
+    nodeData.configuration ?? {};
+
+  const actionType =
+    typeof configuration.actionType ===
+    "string"
+      ? configuration.actionType
+      : "NO_OP";
+
+  const action =
+    getWorkflowAction(actionType);
+
+  const setupRequired =
+    actionNeedsIntegration(
+      actionType
+    ) &&
+    (typeof configuration.integrationId !==
+      "string" ||
+      !configuration.integrationId.trim());
+
   return (
     <div
-      className={`w-64 rounded-lg border bg-background shadow-sm ${
+      className={`w-72 rounded-xl border bg-background shadow-sm transition-shadow ${
         selected
-          ? "border-primary ring-2 ring-primary/20"
-          : "border-border"
+          ? "border-primary shadow-md ring-2 ring-primary/15"
+          : setupRequired
+            ? "border-amber-500/60"
+            : "border-border hover:shadow-md"
       }`}
     >
       <Handle
@@ -28,26 +60,51 @@ export function ActionNode({
         className="!size-3 !border-2 !border-background !bg-blue-500"
       />
 
-      <div className="flex items-center gap-3 border-b px-4 py-3">
-        <div className="flex size-9 items-center justify-center rounded-md bg-blue-500/10 text-blue-600">
+      <div className="flex items-center gap-3 px-4 py-3">
+        <div className="flex size-10 shrink-0 items-center justify-center rounded-lg bg-blue-500/10 text-blue-600">
           <Zap className="size-4" />
         </div>
 
-        <div>
-          <p className="text-xs font-medium uppercase text-muted-foreground">
-            Action
-          </p>
-
-          <p className="font-medium">
+        <div className="min-w-0 flex-1">
+          <p className="truncate font-medium">
             {nodeData.label}
           </p>
+
+          <p className="mt-0.5 truncate text-xs text-muted-foreground">
+            {action.label}
+          </p>
         </div>
+
+        <span
+          className={`flex size-6 items-center justify-center rounded-full ${
+            setupRequired
+              ? "bg-amber-500/10 text-amber-600"
+              : "bg-emerald-500/10 text-emerald-600"
+          }`}
+          title={
+            setupRequired
+              ? "Setup required"
+              : "Step configured"
+          }
+        >
+          {setupRequired ? (
+            <AlertCircle className="size-3.5" />
+          ) : (
+            <Check className="size-3.5" />
+          )}
+        </span>
       </div>
 
       {nodeData.description && (
-        <p className="px-4 py-3 text-sm text-muted-foreground">
+        <p className="border-t px-4 py-3 text-xs leading-5 text-muted-foreground">
           {nodeData.description}
         </p>
+      )}
+
+      {setupRequired && (
+        <div className="border-t border-amber-500/20 bg-amber-500/5 px-4 py-2 text-xs font-medium text-amber-700">
+          Select an integration
+        </div>
       )}
 
       <Handle
