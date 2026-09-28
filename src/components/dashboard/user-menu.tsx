@@ -1,13 +1,18 @@
 "use client";
 
 import {
+  useState,
+} from "react";
+import {
   useRouter,
 } from "next/navigation";
 import {
+  Building2,
   Laptop,
   LogOut,
   Moon,
   Palette,
+  Repeat2,
   Sun,
 } from "lucide-react";
 import {
@@ -22,6 +27,7 @@ import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
   DropdownMenuContent,
+  DropdownMenuGroup,
   DropdownMenuItem,
   DropdownMenuLabel,
   DropdownMenuRadioGroup,
@@ -69,6 +75,11 @@ function getInitials(
 export function UserMenu() {
   const router = useRouter();
 
+  const [
+    isSigningOut,
+    setIsSigningOut,
+  ] = useState(false);
+
   const {
     theme,
     setTheme,
@@ -85,11 +96,35 @@ export function UserMenu() {
     session.data?.user.email ??
     "";
 
-  async function handleLogout() {
-    await authClient.signOut();
+  async function signOutAndRedirect(
+    destination: string
+  ) {
+    if (isSigningOut) {
+      return;
+    }
 
-    router.replace("/sign-in");
-    router.refresh();
+    setIsSigningOut(true);
+
+    try {
+      await authClient.signOut();
+
+      router.replace(destination);
+      router.refresh();
+    } finally {
+      setIsSigningOut(false);
+    }
+  }
+
+  function handleLogout() {
+    void signOutAndRedirect(
+      "/sign-in"
+    );
+  }
+
+  function handleSwitchAccount() {
+    void signOutAndRedirect(
+      "/sign-in?switch=true"
+    );
   }
 
   return (
@@ -101,80 +136,107 @@ export function UserMenu() {
             variant="ghost"
             className="size-9 rounded-full p-0"
             aria-label="Open user menu"
-          >
-            <Avatar className="size-8">
-              <AvatarFallback className="bg-primary text-xs font-semibold text-primary-foreground">
-                {getInitials(
-                  userName
-                )}
-              </AvatarFallback>
-            </Avatar>
-          </Button>
+          />
         }
-      />
+      >
+        <Avatar className="size-8">
+          <AvatarFallback className="bg-primary text-xs font-semibold text-primary-foreground">
+            {getInitials(userName)}
+          </AvatarFallback>
+        </Avatar>
+      </DropdownMenuTrigger>
 
       <DropdownMenuContent
         align="end"
         className="w-64"
       >
-        <DropdownMenuLabel className="px-2 py-2">
-          <span className="block truncate text-sm font-medium text-foreground">
-            {userName}
-          </span>
-
-          {userEmail && (
-            <span className="mt-0.5 block truncate text-xs font-normal text-muted-foreground">
-              {userEmail}
+        <DropdownMenuGroup>
+          <DropdownMenuLabel className="px-2 py-2">
+            <span className="block truncate text-sm font-medium text-foreground">
+              {userName}
             </span>
-          )}
-        </DropdownMenuLabel>
+
+            {userEmail && (
+              <span className="mt-0.5 block truncate text-xs font-normal text-muted-foreground">
+                {userEmail}
+              </span>
+            )}
+          </DropdownMenuLabel>
+        </DropdownMenuGroup>
 
         <DropdownMenuSeparator />
 
-        <DropdownMenuSub>
-          <DropdownMenuSubTrigger>
-            <Palette className="mr-1 size-4" />
-            Appearance
-          </DropdownMenuSubTrigger>
+        <DropdownMenuGroup>
+          <DropdownMenuItem
+            onClick={() => {
+              router.push(
+                "/workspaces"
+              );
+            }}
+          >
+            <Building2 className="mr-1 size-4" />
+            Workspaces and membership
+          </DropdownMenuItem>
 
-          <DropdownMenuSubContent className="w-40">
-            <DropdownMenuRadioGroup
-              value={
-                theme ?? "system"
-              }
-              onValueChange={
-                setTheme
-              }
-            >
-              <DropdownMenuRadioItem value="light">
-                <Sun className="mr-1 size-4" />
-                Light
-              </DropdownMenuRadioItem>
+          <DropdownMenuSub>
+            <DropdownMenuSubTrigger>
+              <Palette className="mr-1 size-4" />
+              Appearance
+            </DropdownMenuSubTrigger>
 
-              <DropdownMenuRadioItem value="dark">
-                <Moon className="mr-1 size-4" />
-                Dark
-              </DropdownMenuRadioItem>
+            <DropdownMenuSubContent className="w-40">
+              <DropdownMenuRadioGroup
+                value={
+                  theme ?? "system"
+                }
+                onValueChange={
+                  setTheme
+                }
+              >
+                <DropdownMenuRadioItem value="light">
+                  <Sun className="mr-1 size-4" />
+                  Light
+                </DropdownMenuRadioItem>
 
-              <DropdownMenuRadioItem value="system">
-                <Laptop className="mr-1 size-4" />
-                System
-              </DropdownMenuRadioItem>
-            </DropdownMenuRadioGroup>
-          </DropdownMenuSubContent>
-        </DropdownMenuSub>
+                <DropdownMenuRadioItem value="dark">
+                  <Moon className="mr-1 size-4" />
+                  Dark
+                </DropdownMenuRadioItem>
+
+                <DropdownMenuRadioItem value="system">
+                  <Laptop className="mr-1 size-4" />
+                  System
+                </DropdownMenuRadioItem>
+              </DropdownMenuRadioGroup>
+            </DropdownMenuSubContent>
+          </DropdownMenuSub>
+        </DropdownMenuGroup>
 
         <DropdownMenuSeparator />
 
-        <DropdownMenuItem
-          variant="destructive"
-          onClick={() => {
-            void handleLogout();
-          }}
-        >
-          <LogOut className="mr-1 size-4" />
-          Log out
-        </DropdownMenuItem>
+        <DropdownMenuGroup>
+          <DropdownMenuItem
+            disabled={isSigningOut}
+            onClick={
+              handleSwitchAccount
+            }
+          >
+            <Repeat2 className="mr-1 size-4" />
+            Switch account
+          </DropdownMenuItem>
+
+          <DropdownMenuItem
+            variant="destructive"
+            disabled={isSigningOut}
+            onClick={handleLogout}
+          >
+            <LogOut className="mr-1 size-4" />
+
+            {isSigningOut
+              ? "Logging out..."
+              : "Log out"}
+          </DropdownMenuItem>
+        </DropdownMenuGroup>
       </DropdownMenuContent>
     </DropdownMenu>
   );

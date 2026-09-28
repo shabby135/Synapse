@@ -11,6 +11,7 @@ import {
   useQuery,
 } from "@tanstack/react-query";
 import {
+  ArrowRight,
   Bot,
   FileText,
   GitBranch,
@@ -19,7 +20,6 @@ import {
   Mail,
   MessageSquare,
   Play,
-  Sparkles,
   TicketCheck,
   type LucideIcon,
 } from "lucide-react";
@@ -31,9 +31,7 @@ import {
   workflowTemplates,
   type WorkflowTemplateId,
 } from "@/features/workflow/workflow-templates";
-import {
-  hasWorkspacePermission,
-} from "@/features/workspace/permissions";
+import { hasWorkspacePermission } from "@/features/workspace/permissions";
 import { useTRPC } from "@/trpc/react";
 
 type PlatformPresentation = {
@@ -44,7 +42,7 @@ type PlatformPresentation = {
 
 type TemplatePresentation = {
   id: string;
-  eyebrow: string;
+  category: string;
   platforms: readonly PlatformPresentation[];
 };
 
@@ -54,132 +52,147 @@ const templatePresentation: Record<
 > = {
   FORM_AI_SLACK: {
     id: "form-response-triage",
-    eyebrow:
-      "Lead and response automation",
+    category: "Lead management",
     platforms: [
       {
         name: "Google Forms",
         icon: FileText,
         className:
-          "bg-violet-500 text-white",
+          "bg-violet-500/10 text-violet-700 dark:text-violet-300",
       },
       {
         name: "AI",
-        icon: Sparkles,
+        icon: Bot,
         className:
-          "bg-emerald-500 text-white",
+          "bg-primary/10 text-primary",
       },
       {
         name: "Slack",
         icon: MessageSquare,
         className:
-          "bg-fuchsia-500 text-white",
+          "bg-fuchsia-500/10 text-fuchsia-700 dark:text-fuchsia-300",
       },
     ],
   },
 
   GMAIL_AI_TRELLO: {
     id: "email-to-task",
-    eyebrow: "Inbox automation",
+    category: "Productivity",
     platforms: [
       {
         name: "Gmail",
         icon: Mail,
         className:
-          "bg-red-500 text-white",
+          "bg-red-500/10 text-red-700 dark:text-red-300",
       },
       {
         name: "AI",
-        icon: Sparkles,
+        icon: Bot,
         className:
-          "bg-emerald-500 text-white",
+          "bg-primary/10 text-primary",
       },
       {
         name: "Trello",
         icon: LayoutGrid,
         className:
-          "bg-blue-500 text-white",
+          "bg-blue-500/10 text-blue-700 dark:text-blue-300",
       },
     ],
   },
 
   GITHUB_TO_JIRA: {
     id: "issue-escalation",
-    eyebrow:
-      "Development automation",
+    category: "Development",
     platforms: [
       {
         name: "GitHub",
         icon: GitBranch,
         className:
-          "bg-zinc-900 text-white",
+          "bg-foreground/10 text-foreground",
       },
       {
         name: "Jira",
         icon: TicketCheck,
         className:
-          "bg-blue-600 text-white",
+          "bg-blue-500/10 text-blue-700 dark:text-blue-300",
       },
     ],
   },
 
   MANUAL_AI_EMAIL: {
     id: "ai-email-assistant",
-    eyebrow: "AI communication",
+    category: "Communication",
     platforms: [
       {
-        name: "Manual",
+        name: "Manual trigger",
         icon: Play,
         className:
-          "bg-amber-500 text-white",
+          "bg-amber-500/10 text-amber-700 dark:text-amber-300",
       },
       {
         name: "AI",
         icon: Bot,
         className:
-          "bg-emerald-500 text-white",
+          "bg-primary/10 text-primary",
       },
       {
         name: "Gmail",
         icon: Mail,
         className:
-          "bg-red-500 text-white",
+          "bg-red-500/10 text-red-700 dark:text-red-300",
       },
     ],
   },
 };
 
-function PlatformLogos({
+function PlatformIcons({
   platforms,
 }: {
   platforms: readonly PlatformPresentation[];
 }) {
   return (
-    <div className="flex items-center">
-      {platforms.map(
-        (platform, index) => {
-          const Icon = platform.icon;
+    <div className="flex items-center gap-2">
+      {platforms.map((platform) => {
+        const Icon = platform.icon;
 
-          return (
-            <div
-              key={platform.name}
-              title={platform.name}
-              className={`relative flex size-11 items-center justify-center rounded-xl border-2 border-background shadow-sm ${platform.className} ${
-                index > 0
-                  ? "-ml-2"
-                  : ""
-              }`}
-              style={{
-                zIndex:
-                  platforms.length -
-                  index,
-              }}
-            >
-              <Icon className="size-5" />
-            </div>
-          );
-        }
-      )}
+        return (
+          <div
+            key={platform.name}
+            title={platform.name}
+            aria-label={platform.name}
+            className={`flex size-9 items-center justify-center rounded-lg ${platform.className}`}
+          >
+            <Icon className="size-4" />
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+function TemplateSteps({
+  templateId,
+  steps,
+}: {
+  templateId: WorkflowTemplateId;
+  steps: readonly string[];
+}) {
+  return (
+    <div className="flex flex-wrap items-center gap-1.5">
+      {steps.map((step, index) => (
+        <div
+          key={`${templateId}-${step}`}
+          className="flex items-center gap-1.5"
+        >
+          {index > 0 && (
+            <ArrowRight className="size-3 text-muted-foreground/70" />
+          )}
+
+          <span className="rounded-md border bg-muted/40 px-2 py-1 text-xs text-muted-foreground">
+            {step}
+          </span>
+        </div>
+      ))}
     </div>
   );
 }
@@ -210,18 +223,17 @@ export function TemplateGallery() {
     trpc.workflow.saveDefinition.mutationOptions()
   );
 
-  const availableWorkspaces =
-    useMemo(
-      () =>
-        workspaces.data?.filter(
-          (workspace) =>
-            hasWorkspacePermission(
-              workspace.role,
-              "workflow:create"
-            )
-        ) ?? [],
-      [workspaces.data]
-    );
+  const availableWorkspaces = useMemo(
+    () =>
+      workspaces.data?.filter(
+        (workspace) =>
+          hasWorkspacePermission(
+            workspace.role,
+            "workflow:create"
+          )
+      ) ?? [],
+    [workspaces.data]
+  );
 
   const activeWorkspaceId =
     availableWorkspaces.some(
@@ -250,8 +262,7 @@ export function TemplateGallery() {
     const template =
       workflowTemplates.find(
         (candidate) =>
-          candidate.id ===
-          templateId
+          candidate.id === templateId
       );
 
     if (!template) {
@@ -266,15 +277,13 @@ export function TemplateGallery() {
 
     try {
       const createdWorkflow =
-        await createWorkflow.mutateAsync(
-          {
-            workspaceId:
-              activeWorkspaceId,
-            name: template.name,
-            description:
-              template.description,
-          }
-        );
+        await createWorkflow.mutateAsync({
+          workspaceId:
+            activeWorkspaceId,
+          name: template.name,
+          description:
+            template.description,
+        });
 
       const definition =
         createWorkflowTemplateDefinition(
@@ -315,8 +324,7 @@ export function TemplateGallery() {
               edge.targetHandle ??
               null,
             animated:
-              edge.animated ??
-              false,
+              edge.animated ?? false,
           })
         ),
       });
@@ -339,7 +347,7 @@ export function TemplateGallery() {
 
   if (workspaces.isPending) {
     return (
-      <div className="flex min-h-64 items-center justify-center rounded-2xl border">
+      <div className="flex min-h-56 items-center justify-center rounded-lg border bg-card">
         <Loader2 className="size-5 animate-spin text-muted-foreground" />
       </div>
     );
@@ -347,7 +355,7 @@ export function TemplateGallery() {
 
   if (workspaces.isError) {
     return (
-      <div className="rounded-2xl border border-destructive/30 bg-destructive/5 p-5">
+      <div className="rounded-lg border border-destructive/30 bg-destructive/5 p-5">
         <p className="font-medium text-destructive">
           Unable to load your
           workspaces
@@ -364,19 +372,19 @@ export function TemplateGallery() {
     availableWorkspaces.length === 0
   ) {
     return (
-      <div className="rounded-2xl border border-dashed p-8 text-center">
-        <div className="mx-auto flex size-12 items-center justify-center rounded-xl bg-muted">
-          <LayoutGrid className="size-5" />
+      <div className="rounded-lg border border-dashed bg-card p-8 text-center">
+        <div className="mx-auto flex size-10 items-center justify-center rounded-lg border bg-muted/50">
+          <LayoutGrid className="size-4" />
         </div>
 
-        <h2 className="mt-4 text-lg font-semibold">
+        <h2 className="mt-4 font-semibold">
           Create a workspace first
         </h2>
 
         <p className="mx-auto mt-2 max-w-md text-sm leading-6 text-muted-foreground">
           You need a workspace with
           workflow creation permission
-          before you can use a template.
+          before using a template.
         </p>
 
         <Button
@@ -392,25 +400,25 @@ export function TemplateGallery() {
   }
 
   return (
-    <div className="space-y-6">
-      <div className="flex flex-col justify-between gap-4 rounded-2xl border bg-card p-5 sm:flex-row sm:items-center">
+    <div className="space-y-5">
+      <section className="flex flex-col gap-4 rounded-lg border bg-card p-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <p className="font-medium">
-            Create inside workspace
-          </p>
+          <h2 className="text-sm font-semibold">
+            Destination workspace
+          </h2>
 
-          <p className="mt-1 text-sm text-muted-foreground">
-            The template will create an
-            editable workflow draft.
+          <p className="mt-1 text-xs text-muted-foreground">
+            A new editable workflow
+            draft will be created here.
           </p>
         </div>
 
-        <div className="w-full sm:w-72">
+        <div className="w-full sm:w-64">
           <label
             htmlFor="template-workspace"
             className="sr-only"
           >
-            Workspace
+            Destination workspace
           </label>
 
           <select
@@ -421,9 +429,10 @@ export function TemplateGallery() {
               setSelectedWorkspaceId(
                 event.target.value
               );
+
               setLocalError(null);
             }}
-            className="h-10 w-full rounded-lg border bg-background px-3 text-sm outline-none focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/50 disabled:cursor-not-allowed disabled:opacity-50"
+            className="h-9 w-full rounded-md border bg-background px-3 text-sm outline-none focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/40 disabled:cursor-not-allowed disabled:opacity-50"
           >
             {availableWorkspaces.map(
               (workspace) => (
@@ -437,15 +446,15 @@ export function TemplateGallery() {
             )}
           </select>
         </div>
-      </div>
+      </section>
 
       {localError && (
-        <p className="rounded-xl border border-destructive/30 bg-destructive/5 px-4 py-3 text-sm font-medium text-destructive">
+        <p className="rounded-lg border border-destructive/30 bg-destructive/5 px-4 py-3 text-sm font-medium text-destructive">
           {localError}
         </p>
       )}
 
-      <div className="grid gap-5 lg:grid-cols-2">
+      <div className="grid gap-4 lg:grid-cols-2">
         {workflowTemplates.map(
           (template) => {
             const presentation =
@@ -457,79 +466,73 @@ export function TemplateGallery() {
               <article
                 key={template.id}
                 id={presentation.id}
-                className="scroll-mt-24 rounded-2xl border bg-card p-6 transition hover:-translate-y-0.5 hover:border-primary/30 hover:shadow-lg"
+                className="scroll-mt-24 rounded-lg border bg-card p-5 transition-colors hover:border-primary/40"
               >
                 <div className="flex items-start justify-between gap-4">
-                  <PlatformLogos
+                  <PlatformIcons
                     platforms={
                       presentation.platforms
                     }
                   />
 
-                  <span className="rounded-full bg-muted px-2.5 py-1 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+                  <span className="shrink-0 rounded-md bg-muted px-2 py-1 text-xs text-muted-foreground">
                     {template.steps.length}{" "}
                     steps
                   </span>
                 </div>
 
-                <p className="mt-6 text-xs font-semibold uppercase tracking-[0.12em] text-primary">
-                  {
-                    presentation.eyebrow
-                  }
-                </p>
+                <div className="mt-5">
+                  <p className="text-xs font-medium text-muted-foreground">
+                    {
+                      presentation.category
+                    }
+                  </p>
 
-                <h2 className="mt-2 text-xl font-semibold">
-                  {template.name}
-                </h2>
+                  <h2 className="mt-1 text-base font-semibold">
+                    {template.name}
+                  </h2>
 
-                <p className="mt-2 min-h-12 text-sm leading-6 text-muted-foreground">
-                  {
-                    template.description
-                  }
-                </p>
-
-                <div className="mt-5 flex flex-wrap items-center gap-2">
-                  {template.steps.map(
-                    (step, index) => (
-                      <div
-                        key={`${template.id}-${step}`}
-                        className="flex items-center gap-2"
-                      >
-                        {index > 0 && (
-                          <span className="text-xs text-muted-foreground">
-                            →
-                          </span>
-                        )}
-
-                        <span className="rounded-lg border bg-muted/40 px-2.5 py-1.5 text-xs font-medium">
-                          {step}
-                        </span>
-                      </div>
-                    )
-                  )}
+                  <p className="mt-2 text-sm leading-6 text-muted-foreground">
+                    {
+                      template.description
+                    }
+                  </p>
                 </div>
 
-                <Button
-                  type="button"
-                  className="mt-6 w-full"
-                  disabled={
-                    isPending ||
-                    !activeWorkspaceId
-                  }
-                  onClick={() =>
-                    createFromTemplate(
+                <div className="mt-4">
+                  <TemplateSteps
+                    templateId={
                       template.id
-                    )
-                  }
-                >
-                  {isPending ? (
-                    <Loader2 className="size-4 animate-spin" />
-                  ) : (
-                    <Play className="size-4" />
-                  )}
+                    }
+                    steps={
+                      template.steps
+                    }
+                  />
+                </div>
 
-                  Use this template
-                </Button>
+                <div className="mt-5 border-t pt-4">
+                  <Button
+                    type="button"
+                    size="sm"
+                    disabled={
+                      isPending ||
+                      !activeWorkspaceId
+                    }
+                    onClick={() =>
+                      createFromTemplate(
+                        template.id
+                      )
+                    }
+                  >
+                    {isPending ? (
+                      <Loader2 className="size-4 animate-spin" />
+                    ) : (
+                      <Play className="size-4" />
+                    )}
+
+                    Use template
+                  </Button>
+                </div>
               </article>
             );
           }
