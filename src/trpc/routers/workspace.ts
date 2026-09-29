@@ -1,5 +1,4 @@
 import { TRPCError } from "@trpc/server";
-
 import {
   and,
   asc,
@@ -7,18 +6,10 @@ import {
   eq,
   ilike,
 } from "drizzle-orm";
+import { alias } from "drizzle-orm/pg-core";
 
-import {
-  user,
-  workspace,
-  workspaceMember,
-} from "@/lib/db/schema";
-
-import { generateSlug } from "@/lib/slug";
-
-import { WorkspaceService } from "@/features/workspace/service";
 import { requireWorkspacePermission } from "@/features/workspace/authorization";
-
+import { WorkspaceService } from "@/features/workspace/service";
 import {
   addWorkspaceMemberSchema,
   createWorkspaceSchema,
@@ -26,6 +17,12 @@ import {
   updateWorkspaceMemberRoleSchema,
   workspaceIdSchema,
 } from "@/features/workspace/validator";
+import {
+  user,
+  workspace,
+  workspaceMember,
+} from "@/lib/db/schema";
+import { generateSlug } from "@/lib/slug";
 
 import {
   protectedProcedure,
@@ -59,6 +56,59 @@ export const workspaceRouter = router({
       )
       .orderBy(desc(workspace.createdAt));
   }),
+
+  listAllMembers: protectedProcedure.query(
+    async ({ ctx }) => {
+      const currentMembership = alias(
+        workspaceMember,
+        "current_workspace_membership"
+      );
+
+      return ctx.db
+        .select({
+          workspaceId: workspace.id,
+          workspaceName: workspace.name,
+          workspaceSlug: workspace.slug,
+          workspaceRole: currentMembership.role,
+          userId: user.id,
+          name: user.name,
+          email: user.email,
+          image: user.image,
+          role: workspaceMember.role,
+          joinedAt: workspaceMember.joinedAt,
+        })
+        .from(currentMembership)
+        .innerJoin(
+          workspace,
+          eq(
+            currentMembership.workspaceId,
+            workspace.id
+          )
+        )
+        .innerJoin(
+          workspaceMember,
+          eq(
+            workspaceMember.workspaceId,
+            workspace.id
+          )
+        )
+        .innerJoin(
+          user,
+          eq(workspaceMember.userId, user.id)
+        )
+        .where(
+          eq(
+            currentMembership.userId,
+            ctx.session.user.id
+          )
+        )
+        .orderBy(
+          asc(workspace.name),
+          asc(user.name),
+          asc(workspaceMember.joinedAt)
+        );
+    }
+  ),
 
   getById: protectedProcedure
     .input(workspaceIdSchema)
@@ -126,10 +176,7 @@ export const workspaceRouter = router({
         .from(workspaceMember)
         .innerJoin(
           user,
-          eq(
-            workspaceMember.userId,
-            user.id
-          )
+          eq(workspaceMember.userId, user.id)
         )
         .where(
           eq(
@@ -365,10 +412,7 @@ export const workspaceRouter = router({
 
       const existing =
         await ctx.db.query.workspace.findFirst({
-          where: eq(
-            workspace.slug,
-            slug
-          ),
+          where: eq(workspace.slug, slug),
         });
 
       if (existing) {

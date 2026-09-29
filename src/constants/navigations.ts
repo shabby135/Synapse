@@ -4,6 +4,7 @@ import {
   Home,
   PlugZap,
   Star,
+  Users,
   Workflow,
 } from "lucide-react";
 
@@ -32,6 +33,11 @@ export const navigation = [
     title: "Workspaces",
     href: "/workspaces",
     icon: FolderKanban,
+  },
+  {
+    title: "Team",
+    href: "/team",
+    icon: Users,
   },
   {
     title: "App connections",
