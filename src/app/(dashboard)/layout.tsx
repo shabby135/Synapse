@@ -1,9 +1,5 @@
-import {
-  headers,
-} from "next/headers";
-import {
-  redirect,
-} from "next/navigation";
+import { headers } from "next/headers";
+import { redirect } from "next/navigation";
 
 import {
   AppSidebar,
@@ -42,7 +38,9 @@ export default async function DashboardLayout({
   }
 
   return (
-    <SidebarProvider>
+    <SidebarProvider
+      defaultOpen={false}
+    >
       <AppSidebar />
 
       <SidebarInset className="min-w-0">

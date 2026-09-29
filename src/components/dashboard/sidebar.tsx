@@ -1,13 +1,14 @@
 "use client";
 
 import {
+  useEffect,
+  useRef,
   useState,
+  type FocusEvent,
   type ReactNode,
 } from "react";
 import Link from "next/link";
-import {
-  usePathname,
-} from "next/navigation";
+import { usePathname } from "next/navigation";
 import {
   ChevronDown,
   FileText,
@@ -23,10 +24,8 @@ import {
 import {
   Sidebar,
   SidebarContent,
-  SidebarFooter,
   SidebarGroup,
   SidebarGroupContent,
-  SidebarGroupLabel,
   SidebarHeader,
   SidebarMenu,
   SidebarMenuAction,
@@ -36,11 +35,9 @@ import {
   SidebarMenuSubButton,
   SidebarMenuSubItem,
   SidebarRail,
+  useSidebar,
 } from "@/components/ui/sidebar";
-import {
-  managementNavigation,
-  navigation,
-} from "@/constants/navigations";
+import { navigation } from "@/constants/navigations";
 
 type TemplateLogoProps = {
   first: ReactNode;
@@ -81,8 +78,7 @@ function TemplateLogos({
 const templateNavigation:
   readonly TemplateNavigationItem[] = [
   {
-    title:
-      "Form response triage",
+    title: "Form response triage",
     href:
       "/templates#form-response-triage",
     logos: (
@@ -134,8 +130,36 @@ const templateNavigation:
   },
 ];
 
+function isNavigationItemActive(
+  pathname: string,
+  href: string
+): boolean {
+  if (href === "/dashboard") {
+    return pathname === href;
+  }
+
+  return (
+    pathname === href ||
+    pathname.startsWith(
+      `${href}/`
+    )
+  );
+}
+
 export function AppSidebar() {
   const pathname = usePathname();
+
+  const {
+    isMobile,
+    setOpen,
+  } = useSidebar();
+
+  const collapseTimer =
+    useRef<
+      ReturnType<
+        typeof setTimeout
+      > | null
+    >(null);
 
   const [
     templatesOpen,
@@ -144,8 +168,87 @@ export function AppSidebar() {
     pathname === "/templates"
   );
 
+  function clearCollapseTimer() {
+    if (!collapseTimer.current) {
+      return;
+    }
+
+    clearTimeout(
+      collapseTimer.current
+    );
+
+    collapseTimer.current =
+      null;
+  }
+
+  function expandSidebar() {
+    if (isMobile) {
+      return;
+    }
+
+    clearCollapseTimer();
+    setOpen(true);
+  }
+
+  function scheduleSidebarCollapse() {
+    if (isMobile) {
+      return;
+    }
+
+    clearCollapseTimer();
+
+    collapseTimer.current =
+      setTimeout(() => {
+        setOpen(false);
+
+        collapseTimer.current =
+          null;
+      }, 180);
+  }
+
+  function handleSidebarBlur(
+    event: FocusEvent<HTMLElement>
+  ) {
+    const nextElement =
+      event.relatedTarget;
+
+    if (
+      nextElement instanceof Node &&
+      event.currentTarget.contains(
+        nextElement
+      )
+    ) {
+      return;
+    }
+
+    scheduleSidebarCollapse();
+  }
+
+  useEffect(() => {
+    return () => {
+      const timer =
+        collapseTimer.current;
+
+      if (timer) {
+        clearTimeout(timer);
+      }
+    };
+  }, []);
+
   return (
-    <Sidebar collapsible="icon">
+    <Sidebar
+      collapsible="icon"
+      onMouseEnter={expandSidebar}
+      onMouseLeave={
+        scheduleSidebarCollapse
+      }
+      onFocusCapture={
+        expandSidebar
+      }
+      onBlurCapture={
+        handleSidebarBlur
+      }
+    >
       <SidebarHeader className="border-b p-2">
         <SidebarMenu>
           <SidebarMenuItem>
@@ -172,16 +275,16 @@ export function AppSidebar() {
           <SidebarMenuItem>
             <SidebarMenuButton
               size="lg"
-              tooltip="Create workflow"
+              tooltip="Create automation"
               render={
-                <Link href="/workspaces" />
+                <Link href="/workspaces?create=assistant" />
               }
               className="h-10 bg-primary text-primary-foreground hover:bg-primary/90 hover:text-primary-foreground active:bg-primary/90 active:text-primary-foreground"
             >
               <Plus className="size-4" />
 
               <span>
-                Create workflow
+                Create automation
               </span>
             </SidebarMenuButton>
           </SidebarMenuItem>
@@ -198,14 +301,9 @@ export function AppSidebar() {
                     item.icon;
 
                   const isActive =
-                    pathname ===
-                      item.href ||
-                    (
-                      item.href !==
-                        "/dashboard" &&
-                      pathname.startsWith(
-                        `${item.href}/`
-                      )
+                    isNavigationItemActive(
+                      pathname,
+                      item.href
                     );
 
                   return (
@@ -324,74 +422,7 @@ export function AppSidebar() {
             </SidebarMenu>
           </SidebarGroupContent>
         </SidebarGroup>
-
-        <SidebarGroup className="mt-2 border-t p-0 pt-3">
-          <SidebarGroupLabel>
-            Manage
-          </SidebarGroupLabel>
-
-          <SidebarGroupContent>
-            <SidebarMenu>
-              {managementNavigation.map(
-                (item) => {
-                  const Icon =
-                    item.icon;
-
-                  return (
-                    <SidebarMenuItem
-                      key={item.title}
-                    >
-                      <SidebarMenuButton
-                        tooltip={
-                          item.title
-                        }
-                        render={
-                          <Link
-                            href={
-                              item.href
-                            }
-                          />
-                        }
-                      >
-                        <Icon className="size-4" />
-
-                        <span>
-                          {item.title}
-                        </span>
-                      </SidebarMenuButton>
-                    </SidebarMenuItem>
-                  );
-                }
-              )}
-            </SidebarMenu>
-          </SidebarGroupContent>
-        </SidebarGroup>
       </SidebarContent>
-
-      <SidebarFooter className="border-t p-3">
-        <div className="space-y-2 group-data-[collapsible=icon]:hidden">
-          <div className="flex items-center justify-between text-xs">
-            <span className="font-medium">
-              Current plan
-            </span>
-
-            <span className="text-muted-foreground">
-              Free
-            </span>
-          </div>
-
-          <div className="h-1.5 overflow-hidden rounded-full bg-muted">
-            <div className="h-full w-1/4 rounded-full bg-primary" />
-          </div>
-
-          <Link
-            href="/workspaces?section=billing"
-            className="block text-xs font-medium text-muted-foreground hover:text-foreground"
-          >
-            View billing and usage
-          </Link>
-        </div>
-      </SidebarFooter>
 
       <SidebarRail />
     </Sidebar>
