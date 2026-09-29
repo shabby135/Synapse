@@ -3,6 +3,7 @@ import {
   History,
   Home,
   PlugZap,
+  Settings,
   Star,
   Users,
   Workflow,
@@ -43,5 +44,10 @@ export const navigation = [
     title: "App connections",
     href: "/connections",
     icon: PlugZap,
+  },
+  {
+    title: "Settings",
+    href: "/settings",
+    icon: Settings,
   },
 ] as const;

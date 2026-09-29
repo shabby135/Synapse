@@ -1,11 +1,7 @@
 "use client";
 
-import {
-  useState,
-} from "react";
-import {
-  useRouter,
-} from "next/navigation";
+import { useState } from "react";
+import { useRouter } from "next/navigation";
 import {
   Building2,
   Laptop,
@@ -13,15 +9,15 @@ import {
   Moon,
   Palette,
   Repeat2,
+  Settings,
   Sun,
 } from "lucide-react";
-import {
-  useTheme,
-} from "next-themes";
+import { useTheme } from "next-themes";
 
 import {
   Avatar,
   AvatarFallback,
+  AvatarImage,
 } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import {
@@ -38,9 +34,7 @@ import {
   DropdownMenuSubTrigger,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import {
-  authClient,
-} from "@/lib/auth-client";
+import { authClient } from "@/lib/auth-client";
 
 function getInitials(
   name: string | null | undefined
@@ -66,35 +60,23 @@ function getInitials(
 
   return (
     parts[0].charAt(0) +
-    parts[
-      parts.length - 1
-    ].charAt(0)
+    parts[parts.length - 1].charAt(0)
   ).toUpperCase();
 }
 
 export function UserMenu() {
   const router = useRouter();
-
-  const [
-    isSigningOut,
-    setIsSigningOut,
-  ] = useState(false);
-
-  const {
-    theme,
-    setTheme,
-  } = useTheme();
-
-  const session =
-    authClient.useSession();
+  const [isSigningOut, setIsSigningOut] =
+    useState(false);
+  const { theme, setTheme } = useTheme();
+  const session = authClient.useSession();
 
   const userName =
-    session.data?.user.name ??
-    "Synapse user";
-
+    session.data?.user.name ?? "Synapse user";
   const userEmail =
-    session.data?.user.email ??
-    "";
+    session.data?.user.email ?? "";
+  const userImage =
+    session.data?.user.image ?? null;
 
   async function signOutAndRedirect(
     destination: string
@@ -107,7 +89,6 @@ export function UserMenu() {
 
     try {
       await authClient.signOut();
-
       router.replace(destination);
       router.refresh();
     } finally {
@@ -116,9 +97,7 @@ export function UserMenu() {
   }
 
   function handleLogout() {
-    void signOutAndRedirect(
-      "/sign-in"
-    );
+    void signOutAndRedirect("/sign-in");
   }
 
   function handleSwitchAccount() {
@@ -140,6 +119,12 @@ export function UserMenu() {
         }
       >
         <Avatar className="size-8">
+          {userImage && (
+            <AvatarImage
+              src={userImage}
+              alt=""
+            />
+          )}
           <AvatarFallback className="bg-primary text-xs font-semibold text-primary-foreground">
             {getInitials(userName)}
           </AvatarFallback>
@@ -169,9 +154,16 @@ export function UserMenu() {
         <DropdownMenuGroup>
           <DropdownMenuItem
             onClick={() => {
-              router.push(
-                "/workspaces"
-              );
+              router.push("/settings");
+            }}
+          >
+            <Settings className="mr-1 size-4" />
+            Account settings
+          </DropdownMenuItem>
+
+          <DropdownMenuItem
+            onClick={() => {
+              router.push("/team");
             }}
           >
             <Building2 className="mr-1 size-4" />
@@ -186,12 +178,8 @@ export function UserMenu() {
 
             <DropdownMenuSubContent className="w-40">
               <DropdownMenuRadioGroup
-                value={
-                  theme ?? "system"
-                }
-                onValueChange={
-                  setTheme
-                }
+                value={theme ?? "system"}
+                onValueChange={setTheme}
               >
                 <DropdownMenuRadioItem value="light">
                   <Sun className="mr-1 size-4" />
@@ -217,9 +205,7 @@ export function UserMenu() {
         <DropdownMenuGroup>
           <DropdownMenuItem
             disabled={isSigningOut}
-            onClick={
-              handleSwitchAccount
-            }
+            onClick={handleSwitchAccount}
           >
             <Repeat2 className="mr-1 size-4" />
             Switch account
@@ -231,7 +217,6 @@ export function UserMenu() {
             onClick={handleLogout}
           >
             <LogOut className="mr-1 size-4" />
-
             {isSigningOut
               ? "Logging out..."
               : "Log out"}
