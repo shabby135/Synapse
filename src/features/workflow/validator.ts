@@ -43,17 +43,6 @@ export const listAllWorkflowsSchema =
       .default(false),
   });
 
-export const setWorkflowFavoriteSchema =
-  z.object({
-    workflowId: z
-      .string()
-      .uuid(
-        "Invalid workflow ID."
-      ),
-
-    favorite: z.boolean(),
-  });
-
 export const createWorkflowSchema =
   z.object({
     workspaceId: z
@@ -138,8 +127,14 @@ export const workflowNodeSchema =
   z.object({
     id: z
       .string()
-      .min(1)
-      .max(100),
+      .min(
+        1,
+        "Node ID is required."
+      )
+      .max(
+        100,
+        "Node ID cannot exceed 100 characters."
+      ),
 
     type: z.enum([
       "trigger",
@@ -153,13 +148,22 @@ export const workflowNodeSchema =
       label: z
         .string()
         .trim()
-        .min(1)
-        .max(100),
+        .min(
+          1,
+          "Node label is required."
+        )
+        .max(
+          100,
+          "Node label cannot exceed 100 characters."
+        ),
 
       description: z
         .string()
         .trim()
-        .max(500)
+        .max(
+          500,
+          "Node description cannot exceed 500 characters."
+        )
         .optional(),
 
       configuration: z
@@ -175,18 +179,36 @@ export const workflowEdgeSchema =
   z.object({
     id: z
       .string()
-      .min(1)
-      .max(200),
+      .min(
+        1,
+        "Connection ID is required."
+      )
+      .max(
+        200,
+        "Connection ID cannot exceed 200 characters."
+      ),
 
     source: z
       .string()
-      .min(1)
-      .max(100),
+      .min(
+        1,
+        "Connection source is required."
+      )
+      .max(
+        100,
+        "Connection source cannot exceed 100 characters."
+      ),
 
     target: z
       .string()
-      .min(1)
-      .max(100),
+      .min(
+        1,
+        "Connection target is required."
+      )
+      .max(
+        100,
+        "Connection target cannot exceed 100 characters."
+      ),
 
     sourceHandle: z
       .string()
@@ -205,7 +227,9 @@ export const workflowEdgeSchema =
 
 const workflowDefinitionShape = {
   nodes: z
-    .array(workflowNodeSchema)
+    .array(
+      workflowNodeSchema
+    )
     .min(
       1,
       "The workflow requires a trigger."
@@ -216,7 +240,9 @@ const workflowDefinitionShape = {
     ),
 
   edges: z
-    .array(workflowEdgeSchema)
+    .array(
+      workflowEdgeSchema
+    )
     .max(
       200,
       "A workflow cannot exceed 200 connections."
@@ -234,10 +260,8 @@ type WorkflowDefinitionValue = {
 };
 
 function validateWorkflowDefinition(
-  definition:
-    WorkflowDefinitionValue,
-  refinementContext:
-    z.RefinementCtx
+  definition: WorkflowDefinitionValue,
+  refinementContext: z.RefinementCtx
 ) {
   const nodeIds =
     new Set<string>();
@@ -282,6 +306,9 @@ function validateWorkflowDefinition(
   }
 
   const edgeIds =
+    new Set<string>();
+
+  const connections =
     new Set<string>();
 
   for (const [
@@ -354,6 +381,35 @@ function validateWorkflowDefinition(
           "A node cannot connect to itself.",
       });
     }
+
+    const connectionKey = [
+      edge.source,
+      edge.sourceHandle ?? "",
+      edge.target,
+      edge.targetHandle ?? "",
+    ].join(":");
+
+    if (
+      connections.has(
+        connectionKey
+      )
+    ) {
+      refinementContext.addIssue({
+        code: "custom",
+
+        path: [
+          "edges",
+          index,
+        ],
+
+        message:
+          "Duplicate connections are not allowed.",
+      });
+    }
+
+    connections.add(
+      connectionKey
+    );
   }
 }
 
@@ -435,6 +491,17 @@ export const createAssistantWorkflowSchema =
       workflowDefinitionSchema,
   });
 
+export const setWorkflowFavoriteSchema =
+  z.object({
+    workflowId: z
+      .string()
+      .uuid(
+        "Invalid workflow ID."
+      ),
+
+    favorite: z.boolean(),
+  });
+
 export const executeWorkflowSchema =
   z.object({
     id: z
@@ -463,10 +530,52 @@ export const listWorkflowRunsSchema =
     limit: z
       .number()
       .int()
-      .min(1)
-      .max(100)
+      .min(
+        1,
+        "Run limit must be at least 1."
+      )
+      .max(
+        100,
+        "Run limit cannot exceed 100."
+      )
       .optional()
       .default(20),
+  });
+
+export const listAllWorkflowRunsSchema =
+  z.object({
+    limit: z
+      .number()
+      .int()
+      .min(
+        1,
+        "Run limit must be at least 1."
+      )
+      .max(
+        100,
+        "Run limit cannot exceed 100."
+      )
+      .optional()
+      .default(50),
+
+    status: z
+      .enum([
+        "PENDING",
+        "RUNNING",
+        "SUCCESS",
+        "FAILED",
+        "CANCELLED",
+      ])
+      .optional(),
+
+    triggerType: z
+      .enum([
+        "MANUAL",
+        "WEBHOOK",
+        "SCHEDULE",
+        "INTEGRATION",
+      ])
+      .optional(),
   });
 
 export const workflowRunIdSchema =
@@ -494,6 +603,16 @@ export type UpdateWorkflowInput =
     typeof updateWorkflowSchema
   >;
 
+export type ListWorkflowsInput =
+  z.infer<
+    typeof listWorkflowsSchema
+  >;
+
+export type ListAllWorkflowsInput =
+  z.infer<
+    typeof listAllWorkflowsSchema
+  >;
+
 export type WorkflowDefinitionInput =
   z.infer<
     typeof workflowDefinitionSchema
@@ -514,11 +633,6 @@ export type CreateAssistantWorkflowInput =
     typeof createAssistantWorkflowSchema
   >;
 
-export type ListAllWorkflowsInput =
-  z.infer<
-    typeof listAllWorkflowsSchema
-  >;
-
 export type SetWorkflowFavoriteInput =
   z.infer<
     typeof setWorkflowFavoriteSchema
@@ -532,6 +646,11 @@ export type ExecuteWorkflowInput =
 export type ListWorkflowRunsInput =
   z.infer<
     typeof listWorkflowRunsSchema
+  >;
+
+export type ListAllWorkflowRunsInput =
+  z.infer<
+    typeof listAllWorkflowRunsSchema
   >;
 
 export type WorkflowRunIdInput =

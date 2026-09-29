@@ -1,5 +1,6 @@
 import {
   FolderKanban,
+  History,
   Home,
   PlugZap,
   Star,
@@ -21,6 +22,11 @@ export const navigation = [
     title: "Favorites",
     href: "/favorites",
     icon: Star,
+  },
+  {
+    title: "Run history",
+    href: "/runs",
+    icon: History,
   },
   {
     title: "Workspaces",
