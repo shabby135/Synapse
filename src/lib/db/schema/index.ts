@@ -4,6 +4,7 @@ export * from "./workspace-member";
 export * from "./workspace-integration";
 export * from "./integration-oauth-state";
 export * from "./workflow";
+export * from "./workflow-favorite";
 export * from "./workflow-execution";
 export * from "./workflow-webhook";
 export * from "./workflow-integration-trigger";

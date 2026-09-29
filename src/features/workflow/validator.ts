@@ -1,68 +1,66 @@
 import { z } from "zod";
 
-export const workflowStatusSchema = z.enum([
-  "DRAFT",
-  "ACTIVE",
-  "ARCHIVED",
-]);
+export const workflowStatusSchema =
+  z.enum([
+    "DRAFT",
+    "ACTIVE",
+    "ARCHIVED",
+  ]);
 
-export const workflowIdSchema = z.object({
-  id: z
-    .string()
-    .uuid("Invalid workflow ID."),
-});
+export const workflowIdSchema =
+  z.object({
+    id: z
+      .string()
+      .uuid(
+        "Invalid workflow ID."
+      ),
+  });
 
-export const listWorkflowsSchema = z.object({
-  workspaceId: z
-    .string()
-    .uuid("Invalid workspace ID."),
+export const listWorkflowsSchema =
+  z.object({
+    workspaceId: z
+      .string()
+      .uuid(
+        "Invalid workspace ID."
+      ),
 
-  includeArchived: z
-    .boolean()
-    .optional()
-    .default(false),
-});
+    includeArchived: z
+      .boolean()
+      .optional()
+      .default(false),
+  });
 
 export const listAllWorkflowsSchema =
   z.object({
     includeArchived: z
       .boolean()
       .optional()
-      .default(true),
+      .default(false),
+
+    favoritesOnly: z
+      .boolean()
+      .optional()
+      .default(false),
   });
 
-export const createWorkflowSchema = z.object({
-  workspaceId: z
-    .string()
-    .uuid("Invalid workspace ID."),
-
-  name: z
-    .string()
-    .trim()
-    .min(
-      2,
-      "Workflow name must contain at least 2 characters."
-    )
-    .max(
-      100,
-      "Workflow name cannot exceed 100 characters."
-    ),
-
-  description: z
-    .string()
-    .trim()
-    .max(
-      500,
-      "Description cannot exceed 500 characters."
-    )
-    .optional(),
-});
-
-export const updateWorkflowSchema = z
-  .object({
-    id: z
+export const setWorkflowFavoriteSchema =
+  z.object({
+    workflowId: z
       .string()
-      .uuid("Invalid workflow ID."),
+      .uuid(
+        "Invalid workflow ID."
+      ),
+
+    favorite: z.boolean(),
+  });
+
+export const createWorkflowSchema =
+  z.object({
+    workspaceId: z
+      .string()
+      .uuid(
+        "Invalid workspace ID."
+      ),
 
     name: z
       .string()
@@ -74,8 +72,7 @@ export const updateWorkflowSchema = z
       .max(
         100,
         "Workflow name cannot exceed 100 characters."
-      )
-      .optional(),
+      ),
 
     description: z
       .string()
@@ -84,89 +81,127 @@ export const updateWorkflowSchema = z
         500,
         "Description cannot exceed 500 characters."
       )
-      .nullable()
       .optional(),
-  })
-  .refine(
-    (input) =>
-      input.name !== undefined ||
-      input.description !== undefined,
-    {
-      message:
-        "Provide at least one field to update.",
-    }
-  );
+  });
 
-const workflowPositionSchema = z.object({
-  x: z.number().finite(),
-  y: z.number().finite(),
-});
+export const updateWorkflowSchema =
+  z
+    .object({
+      id: z
+        .string()
+        .uuid(
+          "Invalid workflow ID."
+        ),
 
-export const workflowNodeSchema = z.object({
-  id: z
-    .string()
-    .min(1)
-    .max(100),
+      name: z
+        .string()
+        .trim()
+        .min(
+          2,
+          "Workflow name must contain at least 2 characters."
+        )
+        .max(
+          100,
+          "Workflow name cannot exceed 100 characters."
+        )
+        .optional(),
 
-  type: z.enum([
-    "trigger",
-    "action",
-  ]),
+      description: z
+        .string()
+        .trim()
+        .max(
+          500,
+          "Description cannot exceed 500 characters."
+        )
+        .nullable()
+        .optional(),
+    })
+    .refine(
+      (input) =>
+        input.name !==
+          undefined ||
+        input.description !==
+          undefined,
+      {
+        message:
+          "Provide at least one field to update.",
+      }
+    );
 
-  position: workflowPositionSchema,
+const workflowPositionSchema =
+  z.object({
+    x: z.number().finite(),
+    y: z.number().finite(),
+  });
 
-  data: z.object({
-    label: z
+export const workflowNodeSchema =
+  z.object({
+    id: z
       .string()
-      .trim()
       .min(1)
       .max(100),
 
-    description: z
+    type: z.enum([
+      "trigger",
+      "action",
+    ]),
+
+    position:
+      workflowPositionSchema,
+
+    data: z.object({
+      label: z
+        .string()
+        .trim()
+        .min(1)
+        .max(100),
+
+      description: z
+        .string()
+        .trim()
+        .max(500)
+        .optional(),
+
+      configuration: z
+        .record(
+          z.string(),
+          z.unknown()
+        )
+        .optional(),
+    }),
+  });
+
+export const workflowEdgeSchema =
+  z.object({
+    id: z
       .string()
-      .trim()
-      .max(500)
+      .min(1)
+      .max(200),
+
+    source: z
+      .string()
+      .min(1)
+      .max(100),
+
+    target: z
+      .string()
+      .min(1)
+      .max(100),
+
+    sourceHandle: z
+      .string()
+      .nullable()
       .optional(),
 
-    configuration: z
-      .record(
-        z.string(),
-        z.unknown()
-      )
+    targetHandle: z
+      .string()
+      .nullable()
       .optional(),
-  }),
-});
 
-export const workflowEdgeSchema = z.object({
-  id: z
-    .string()
-    .min(1)
-    .max(200),
-
-  source: z
-    .string()
-    .min(1)
-    .max(100),
-
-  target: z
-    .string()
-    .min(1)
-    .max(100),
-
-  sourceHandle: z
-    .string()
-    .nullable()
-    .optional(),
-
-  targetHandle: z
-    .string()
-    .nullable()
-    .optional(),
-
-  animated: z
-    .boolean()
-    .optional(),
-});
+    animated: z
+      .boolean()
+      .optional(),
+  });
 
 const workflowDefinitionShape = {
   nodes: z
@@ -189,20 +224,23 @@ const workflowDefinitionShape = {
 };
 
 type WorkflowDefinitionValue = {
-  nodes: Array<
-    z.infer<typeof workflowNodeSchema>
-  >;
+  nodes: z.infer<
+    typeof workflowNodeSchema
+  >[];
 
-  edges: Array<
-    z.infer<typeof workflowEdgeSchema>
-  >;
+  edges: z.infer<
+    typeof workflowEdgeSchema
+  >[];
 };
 
 function validateWorkflowDefinition(
-  definition: WorkflowDefinitionValue,
-  refinementContext: z.RefinementCtx
+  definition:
+    WorkflowDefinitionValue,
+  refinementContext:
+    z.RefinementCtx
 ) {
-  const nodeIds = new Set<string>();
+  const nodeIds =
+    new Set<string>();
 
   for (const [
     index,
@@ -211,11 +249,13 @@ function validateWorkflowDefinition(
     if (nodeIds.has(node.id)) {
       refinementContext.addIssue({
         code: "custom",
+
         path: [
           "nodes",
           index,
           "id",
         ],
+
         message:
           "Node IDs must be unique.",
       });
@@ -233,13 +273,16 @@ function validateWorkflowDefinition(
   if (triggerCount !== 1) {
     refinementContext.addIssue({
       code: "custom",
+
       path: ["nodes"],
+
       message:
         "A workflow must contain exactly one trigger.",
     });
   }
 
-  const edgeIds = new Set<string>();
+  const edgeIds =
+    new Set<string>();
 
   for (const [
     index,
@@ -248,11 +291,13 @@ function validateWorkflowDefinition(
     if (edgeIds.has(edge.id)) {
       refinementContext.addIssue({
         code: "custom",
+
         path: [
           "edges",
           index,
           "id",
         ],
+
         message:
           "Connection IDs must be unique.",
       });
@@ -260,39 +305,51 @@ function validateWorkflowDefinition(
 
     edgeIds.add(edge.id);
 
-    if (!nodeIds.has(edge.source)) {
+    if (
+      !nodeIds.has(edge.source)
+    ) {
       refinementContext.addIssue({
         code: "custom",
+
         path: [
           "edges",
           index,
           "source",
         ],
+
         message:
           "Connection source does not exist.",
       });
     }
 
-    if (!nodeIds.has(edge.target)) {
+    if (
+      !nodeIds.has(edge.target)
+    ) {
       refinementContext.addIssue({
         code: "custom",
+
         path: [
           "edges",
           index,
           "target",
         ],
+
         message:
           "Connection target does not exist.",
       });
     }
 
-    if (edge.source === edge.target) {
+    if (
+      edge.source === edge.target
+    ) {
       refinementContext.addIssue({
         code: "custom",
+
         path: [
           "edges",
           index,
         ],
+
         message:
           "A node cannot connect to itself.",
       });
@@ -427,16 +484,6 @@ export const archiveWorkflowSchema =
 export const deleteWorkflowSchema =
   workflowIdSchema;
 
-export type ListWorkflowsInput =
-  z.infer<
-    typeof listWorkflowsSchema
-  >;
-
-export type ListAllWorkflowsInput =
-  z.infer<
-    typeof listAllWorkflowsSchema
-  >;
-
 export type CreateWorkflowInput =
   z.infer<
     typeof createWorkflowSchema
@@ -465,6 +512,16 @@ export type GenerateWorkflowDraftInput =
 export type CreateAssistantWorkflowInput =
   z.infer<
     typeof createAssistantWorkflowSchema
+  >;
+
+export type ListAllWorkflowsInput =
+  z.infer<
+    typeof listAllWorkflowsSchema
+  >;
+
+export type SetWorkflowFavoriteInput =
+  z.infer<
+    typeof setWorkflowFavoriteSchema
   >;
 
 export type ExecuteWorkflowInput =

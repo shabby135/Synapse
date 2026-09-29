@@ -12,29 +12,37 @@ import {
 } from "drizzle-orm/pg-core";
 
 import { user } from "./auth";
+import {
+  workflowFavorite,
+} from "./workflow-favorite";
 import { workspace } from "./workspace";
 
-export const workflowStatus = pgEnum(
-  "workflow_status",
-  [
-    "DRAFT",
-    "ACTIVE",
-    "ARCHIVED",
-  ]
-);
+export const workflowStatus =
+  pgEnum(
+    "workflow_status",
+    [
+      "DRAFT",
+      "ACTIVE",
+      "ARCHIVED",
+    ]
+  );
 
-export const workflowVersionStatus = pgEnum(
-  "workflow_version_status",
-  [
-    "DRAFT",
-    "PUBLISHED",
-  ]
-);
+export const workflowVersionStatus =
+  pgEnum(
+    "workflow_version_status",
+    [
+      "DRAFT",
+      "PUBLISHED",
+    ]
+  );
 
 export type WorkflowDefinition = {
   nodes: unknown[];
   edges: unknown[];
-  variables?: Record<string, unknown>;
+  variables?: Record<
+    string,
+    unknown
+  >;
 };
 
 export const workflow = pgTable(
@@ -42,119 +50,164 @@ export const workflow = pgTable(
   {
     id: text("id").primaryKey(),
 
-    workspaceId: text("workspace_id")
+    workspaceId: text(
+      "workspace_id"
+    )
       .notNull()
-      .references(() => workspace.id, {
-        onDelete: "cascade",
-      }),
+      .references(
+        () => workspace.id,
+        {
+          onDelete: "cascade",
+        }
+      ),
 
     name: text("name").notNull(),
 
-    description: text("description"),
+    description: text(
+      "description"
+    ),
 
-    status: workflowStatus("status")
+    status: workflowStatus(
+      "status"
+    )
       .default("DRAFT")
       .notNull(),
 
-    createdBy: text("created_by").references(
-      () => user.id,
-      {
-        onDelete: "set null",
-      }
-    ),
+    createdBy: text(
+      "created_by"
+    ).references(() => user.id, {
+      onDelete: "set null",
+    }),
 
-    createdAt: timestamp("created_at")
+    createdAt: timestamp(
+      "created_at"
+    )
       .defaultNow()
       .notNull(),
 
-    updatedAt: timestamp("updated_at")
+    updatedAt: timestamp(
+      "updated_at"
+    )
       .defaultNow()
       .$onUpdate(() => new Date())
       .notNull(),
   },
   (table) => [
-    index("workflow_workspace_id_idx").on(
-      table.workspaceId
-    ),
+    index(
+      "workflow_workspace_id_idx"
+    ).on(table.workspaceId),
 
-    index("workflow_workspace_status_idx").on(
+    index(
+      "workflow_workspace_status_idx"
+    ).on(
       table.workspaceId,
       table.status
     ),
   ]
 );
 
-export const workflowVersion = pgTable(
-  "workflow_version",
-  {
-    id: text("id").primaryKey(),
+export const workflowVersion =
+  pgTable(
+    "workflow_version",
+    {
+      id: text("id").primaryKey(),
 
-    workflowId: text("workflow_id")
-      .notNull()
-      .references(() => workflow.id, {
-        onDelete: "cascade",
+      workflowId: text(
+        "workflow_id"
+      )
+        .notNull()
+        .references(
+          () => workflow.id,
+          {
+            onDelete: "cascade",
+          }
+        ),
+
+      version: integer(
+        "version"
+      ).notNull(),
+
+      status:
+        workflowVersionStatus(
+          "status"
+        )
+          .default("DRAFT")
+          .notNull(),
+
+      definition: jsonb(
+        "definition"
+      )
+        .$type<WorkflowDefinition>()
+        .default({
+          nodes: [],
+          edges: [],
+        })
+        .notNull(),
+
+      createdBy: text(
+        "created_by"
+      ).references(() => user.id, {
+        onDelete: "set null",
       }),
 
-    version: integer("version").notNull(),
+      createdAt: timestamp(
+        "created_at"
+      )
+        .defaultNow()
+        .notNull(),
 
-    status: workflowVersionStatus("status")
-      .default("DRAFT")
-      .notNull(),
+      updatedAt: timestamp(
+        "updated_at"
+      )
+        .defaultNow()
+        .$onUpdate(
+          () => new Date()
+        )
+        .notNull(),
+    },
+    (table) => [
+      uniqueIndex(
+        "workflow_version_workflow_version_idx"
+      ).on(
+        table.workflowId,
+        table.version
+      ),
 
-    definition: jsonb("definition")
-      .$type<WorkflowDefinition>()
-      .default({
-        nodes: [],
-        edges: [],
-      })
-      .notNull(),
+      index(
+        "workflow_version_workflow_id_idx"
+      ).on(table.workflowId),
+    ]
+  );
 
-    createdBy: text("created_by").references(
-      () => user.id,
-      {
-        onDelete: "set null",
-      }
-    ),
+export const workflowRelations =
+  relations(
+    workflow,
+    ({ one, many }) => ({
+      workspace: one(workspace, {
+        fields: [
+          workflow.workspaceId,
+        ],
+        references: [
+          workspace.id,
+        ],
+      }),
 
-    createdAt: timestamp("created_at")
-      .defaultNow()
-      .notNull(),
+      creator: one(user, {
+        fields: [
+          workflow.createdBy,
+        ],
+        references: [user.id],
+      }),
 
-    updatedAt: timestamp("updated_at")
-      .defaultNow()
-      .$onUpdate(() => new Date())
-      .notNull(),
-  },
-  (table) => [
-    uniqueIndex(
-      "workflow_version_workflow_version_idx"
-    ).on(
-      table.workflowId,
-      table.version
-    ),
+      versions: many(
+        workflowVersion
+      ),
 
-    index(
-      "workflow_version_workflow_id_idx"
-    ).on(table.workflowId),
-  ]
-);
-
-export const workflowRelations = relations(
-  workflow,
-  ({ one, many }) => ({
-    workspace: one(workspace, {
-      fields: [workflow.workspaceId],
-      references: [workspace.id],
-    }),
-
-    creator: one(user, {
-      fields: [workflow.createdBy],
-      references: [user.id],
-    }),
-
-    versions: many(workflowVersion),
-  })
-);
+      favorites: many(
+        workflowFavorite
+      ),
+    })
+  );
 
 export const workflowVersionRelations =
   relations(
@@ -164,7 +217,9 @@ export const workflowVersionRelations =
         fields: [
           workflowVersion.workflowId,
         ],
-        references: [workflow.id],
+        references: [
+          workflow.id,
+        ],
       }),
 
       creator: one(user, {

@@ -2,6 +2,7 @@ import {
   FolderKanban,
   Home,
   PlugZap,
+  Star,
   Workflow,
 } from "lucide-react";
 
@@ -15,6 +16,11 @@ export const navigation = [
     title: "Automations",
     href: "/automations",
     icon: Workflow,
+  },
+  {
+    title: "Favorites",
+    href: "/favorites",
+    icon: Star,
   },
   {
     title: "Workspaces",
