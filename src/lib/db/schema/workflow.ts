@@ -1,5 +1,6 @@
-import { relations } from "drizzle-orm";
-
+import {
+  relations,
+} from "drizzle-orm";
 import {
   index,
   integer,
@@ -15,6 +16,9 @@ import { user } from "./auth";
 import {
   workflowFavorite,
 } from "./workflow-favorite";
+import {
+  workflowFolder,
+} from "./workflow-folder";
 import { workspace } from "./workspace";
 
 export const workflowStatus =
@@ -39,6 +43,7 @@ export const workflowVersionStatus =
 export type WorkflowDefinition = {
   nodes: unknown[];
   edges: unknown[];
+
   variables?: Record<
     string,
     unknown
@@ -61,6 +66,15 @@ export const workflow = pgTable(
         }
       ),
 
+    folderId: text(
+      "folder_id"
+    ).references(
+      () => workflowFolder.id,
+      {
+        onDelete: "set null",
+      }
+    ),
+
     name: text("name").notNull(),
 
     description: text(
@@ -75,9 +89,12 @@ export const workflow = pgTable(
 
     createdBy: text(
       "created_by"
-    ).references(() => user.id, {
-      onDelete: "set null",
-    }),
+    ).references(
+      () => user.id,
+      {
+        onDelete: "set null",
+      }
+    ),
 
     createdAt: timestamp(
       "created_at"
@@ -89,13 +106,26 @@ export const workflow = pgTable(
       "updated_at"
     )
       .defaultNow()
-      .$onUpdate(() => new Date())
+      .$onUpdate(
+        () => new Date()
+      )
       .notNull(),
   },
   (table) => [
     index(
       "workflow_workspace_id_idx"
     ).on(table.workspaceId),
+
+    index(
+      "workflow_folder_id_idx"
+    ).on(table.folderId),
+
+    index(
+      "workflow_workspace_folder_idx"
+    ).on(
+      table.workspaceId,
+      table.folderId
+    ),
 
     index(
       "workflow_workspace_status_idx"
@@ -146,9 +176,12 @@ export const workflowVersion =
 
       createdBy: text(
         "created_by"
-      ).references(() => user.id, {
-        onDelete: "set null",
-      }),
+      ).references(
+        () => user.id,
+        {
+          onDelete: "set null",
+        }
+      ),
 
       createdAt: timestamp(
         "created_at"
@@ -191,6 +224,18 @@ export const workflowRelations =
           workspace.id,
         ],
       }),
+
+      folder: one(
+        workflowFolder,
+        {
+          fields: [
+            workflow.folderId,
+          ],
+          references: [
+            workflowFolder.id,
+          ],
+        }
+      ),
 
       creator: one(user, {
         fields: [

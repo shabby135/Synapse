@@ -1,23 +1,39 @@
-import { router } from "../init";
-
-import { userRouter } from "./user";
-import { workflowRouter } from "./workflow";
-import { integrationRouter } from "./integration";
-import { workspaceRouter } from "./workspace";
 import "server-only";
-import {
-  workflowWebhookRouter,
-} from "./workflow-webhook";
 
 import {
   createHash,
   randomBytes,
   timingSafeEqual,
 } from "node:crypto";
-import { billingRouter } from "./billing";
+
+import {
+  router,
+} from "../init";
+
+import {
+  billingRouter,
+} from "./billing";
+import {
+  integrationRouter,
+} from "./integration";
 import {
   monitoringRouter,
 } from "./monitoring";
+import {
+  userRouter,
+} from "./user";
+import {
+  workflowFolderRouter,
+} from "./workflow-folder";
+import {
+  workflowWebhookRouter,
+} from "./workflow-webhook";
+import {
+  workflowRouter,
+} from "./workflow";
+import {
+  workspaceRouter,
+} from "./workspace";
 
 const WEBHOOK_SECRET_BYTES = 32;
 
@@ -31,7 +47,10 @@ export function hashWebhookSecret(
   secret: string
 ): string {
   return createHash("sha256")
-    .update(secret, "utf8")
+    .update(
+      secret,
+      "utf8"
+    )
     .digest("hex");
 }
 
@@ -45,15 +64,17 @@ export function verifyWebhookSecret({
   const actualHash =
     hashWebhookSecret(secret);
 
-  const actualBuffer = Buffer.from(
-    actualHash,
-    "hex"
-  );
+  const actualBuffer =
+    Buffer.from(
+      actualHash,
+      "hex"
+    );
 
-  const expectedBuffer = Buffer.from(
-    expectedHash,
-    "hex"
-  );
+  const expectedBuffer =
+    Buffer.from(
+      expectedHash,
+      "hex"
+    );
 
   if (
     actualBuffer.length !==
@@ -68,16 +89,31 @@ export function verifyWebhookSecret({
   );
 }
 
-export const appRouter = router({
-    integration: integrationRouter,
-  user: userRouter,
-  workspace: workspaceRouter,
-  workflow: workflowRouter,
-  monitoring: monitoringRouter,
+export const appRouter =
+  router({
+    user: userRouter,
 
-  workflowWebhook:
-    workflowWebhookRouter,
-  billing: billingRouter,
-});
+    workspace:
+      workspaceRouter,
 
-export type AppRouter = typeof appRouter;
+    workflow:
+      workflowRouter,
+
+    workflowFolder:
+      workflowFolderRouter,
+
+    workflowWebhook:
+      workflowWebhookRouter,
+
+    integration:
+      integrationRouter,
+
+    monitoring:
+      monitoringRouter,
+
+    billing:
+      billingRouter,
+  });
+
+export type AppRouter =
+  typeof appRouter;

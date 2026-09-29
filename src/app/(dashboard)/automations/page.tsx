@@ -1,5 +1,5 @@
-import { Plus } from "lucide-react";
 import Link from "next/link";
+import { Plus } from "lucide-react";
 
 import { GlobalWorkflowList } from "@/features/workflow/components/global-workflow-list";
 
@@ -8,9 +8,12 @@ export default function AutomationsPage() {
     <div className="space-y-6">
       <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
         <div>
-          <h1 className="text-2xl font-semibold tracking-tight">Automations</h1>
+          <h1 className="text-2xl font-semibold tracking-tight">
+            Automations
+          </h1>
+
           <p className="mt-1 text-sm text-muted-foreground">
-            View and manage workflows from every workspace you can access.
+            Organize workflows into folders and manage automations from every workspace you can access.
           </p>
         </div>
 

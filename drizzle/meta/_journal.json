@@ -120,6 +120,13 @@
       "when": 1790693901289,
       "tag": "0016_fair_blob",
       "breakpoints": true
+    },
+    {
+      "idx": 17,
+      "version": "7",
+      "when": 1790717697353,
+      "tag": "0017_quiet_rockslide",
+      "breakpoints": true
     }
   ]
 }
