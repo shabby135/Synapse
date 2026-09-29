@@ -1,17 +1,55 @@
 import {
-  FolderKanban,
-  LayoutDashboard,
+  CreditCard,
+  History,
+  Home,
+  PlugZap,
+  Settings,
+  Users,
+  Workflow,
 } from "lucide-react";
 
 export const navigation = [
   {
-    title: "Dashboard",
+    title: "Home",
     href: "/dashboard",
-    icon: LayoutDashboard,
+    icon: Home,
   },
   {
-    title: "Workspaces",
+    title: "Workflows",
     href: "/workspaces",
-    icon: FolderKanban,
+    icon: Workflow,
+  },
+] as const;
+
+export const managementNavigation = [
+  {
+    title: "App connections",
+    href:
+      "/workspaces?section=connections",
+    icon: PlugZap,
+  },
+  {
+    title: "Run history",
+    href:
+      "/workspaces?section=runs",
+    icon: History,
+  },
+  {
+    title: "Team members",
+    href:
+      "/workspaces?section=members",
+    icon: Users,
+  },
+  {
+    title: "Billing & usage",
+    href:
+      "/workspaces?section=billing",
+    icon: CreditCard,
+  },
+  {
+    title: "Settings",
+    href:
+      "/workspaces?section=settings",
+    icon: Settings,
   },
 ] as const;

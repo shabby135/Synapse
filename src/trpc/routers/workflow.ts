@@ -9,17 +9,21 @@ import {
   ne,
   sql,
 } from "drizzle-orm";
-
 import {
   queueWorkflowRun,
   WorkflowRunQueueError,
 } from "@/features/workflow/queue-workflow-run";
+import {
+  generateWorkflowDraft,
+} from "@/features/workflow/generate-workflow-draft";
 import { validateWorkflowForPublish } from "@/features/workflow/validate-publish";
 import {
   archiveWorkflowSchema,
+  createAssistantWorkflowSchema,
   createWorkflowSchema,
   deleteWorkflowSchema,
   executeWorkflowSchema,
+  generateWorkflowDraftSchema,
   listWorkflowRunsSchema,
   listWorkflowsSchema,
   saveWorkflowDefinitionSchema,
@@ -35,12 +39,10 @@ import {
   workflowRunStep,
   workflowVersion,
 } from "@/lib/db/schema";
-
 import {
   protectedProcedure,
   router,
 } from "../init";
-
 function record(
   value: unknown
 ): Record<string, unknown> | null {
@@ -53,45 +55,36 @@ function record(
       >)
     : null;
 }
-
 function createNodeLabelMap(
   nodes: unknown[]
 ): Map<string, string> {
   const labels =
     new Map<string, string>();
-
   for (const node of nodes) {
     const parsedNode =
       record(node);
-
     if (!parsedNode) {
       continue;
     }
-
     const id =
       typeof parsedNode.id ===
       "string"
         ? parsedNode.id
         : "";
-
     const data = record(
       parsedNode.data
     );
-
     const label =
       typeof data?.label ===
       "string"
         ? data.label.trim()
         : "";
-
     if (id && label) {
       labels.set(id, label);
     }
   }
-
   return labels;
 }
-
 export const workflowRouter = router({
   list: protectedProcedure
     .input(listWorkflowsSchema)
@@ -105,7 +98,6 @@ export const workflowRouter = router({
         permission:
           "workflow:read",
       });
-
       const workflowRows =
         await ctx.db
           .select({
@@ -144,13 +136,11 @@ export const workflowRouter = router({
           .orderBy(
             desc(workflow.updatedAt)
           );
-
       if (
         workflowRows.length === 0
       ) {
         return [];
       }
-
       const rankedRuns = ctx.db
         .select({
           id: workflowRun.id,
@@ -183,7 +173,6 @@ export const workflowRouter = router({
           )
         )
         .as("ranked_runs");
-
       const recentRunRows =
         await ctx.db
           .select({
@@ -208,13 +197,11 @@ export const workflowRouter = router({
           .orderBy(
             desc(rankedRuns.createdAt)
           );
-
       const runsByWorkflow =
         new Map<
           string,
           typeof recentRunRows
         >();
-
       for (
         const run of recentRunRows
       ) {
@@ -222,22 +209,18 @@ export const workflowRouter = router({
           runsByWorkflow.get(
             run.workflowId
           ) ?? [];
-
         current.push(run);
-
         runsByWorkflow.set(
           run.workflowId,
           current
         );
       }
-
       return workflowRows.map(
         (workflowItem) => {
           const recentRuns =
             runsByWorkflow.get(
               workflowItem.id
             ) ?? [];
-
           return {
             ...workflowItem,
             latestRun:
@@ -247,7 +230,6 @@ export const workflowRouter = router({
         }
       );
     }),
-
   getById: protectedProcedure
     .input(workflowIdSchema)
     .query(async ({ ctx, input }) => {
@@ -262,7 +244,6 @@ export const workflowRouter = router({
             )
           )
           .limit(1);
-
       if (!existingWorkflow) {
         throw new TRPCError({
           code: "NOT_FOUND",
@@ -270,7 +251,6 @@ export const workflowRouter = router({
             "Workflow not found.",
         });
       }
-
       await requireWorkspacePermission({
         database: ctx.db,
         workspaceId:
@@ -280,7 +260,6 @@ export const workflowRouter = router({
         permission:
           "workflow:read",
       });
-
       const versions =
         await ctx.db
           .select({
@@ -310,13 +289,151 @@ export const workflowRouter = router({
               workflowVersion.version
             )
           );
-
       return {
         ...existingWorkflow,
         versions,
       };
     }),
-
+  generateAssistantDraft:
+    protectedProcedure
+      .input(
+        generateWorkflowDraftSchema
+      )
+      .mutation(
+        async ({ ctx, input }) => {
+          await requireWorkspacePermission(
+            {
+              database: ctx.db,
+              workspaceId:
+                input.workspaceId,
+              userId:
+                ctx.session.user.id,
+              permission:
+                "workflow:create",
+            }
+          );
+          try {
+            return await generateWorkflowDraft(
+              input.prompt
+            );
+          } catch (error) {
+            throw new TRPCError({
+              code:
+                "PRECONDITION_FAILED",
+              message:
+                error instanceof Error
+                  ? error.message
+                  : "Unable to generate the workflow draft.",
+            });
+          }
+        }
+      ),
+  createAssistantDraft:
+    protectedProcedure
+      .input(
+        createAssistantWorkflowSchema
+      )
+      .mutation(
+        async ({ ctx, input }) => {
+          await requireWorkspacePermission(
+            {
+              database: ctx.db,
+              workspaceId:
+                input.workspaceId,
+              userId:
+                ctx.session.user.id,
+              permission:
+                "workflow:create",
+            }
+          );
+          const workflowId =
+            crypto.randomUUID();
+          const versionId =
+            crypto.randomUUID();
+          const parsedDefinition =
+            saveWorkflowDefinitionSchema.safeParse(
+              {
+                id: workflowId,
+                nodes:
+                  input.definition.nodes,
+                edges:
+                  input.definition.edges,
+              }
+            );
+          if (
+            !parsedDefinition.success
+          ) {
+            throw new TRPCError({
+              code: "BAD_REQUEST",
+              message:
+                parsedDefinition.error
+                  .issues[0]
+                  ?.message ??
+                "The generated workflow definition is invalid.",
+            });
+          }
+          return ctx.db.transaction(
+            async (transaction) => {
+              const [
+                createdWorkflow,
+              ] = await transaction
+                .insert(workflow)
+                .values({
+                  id: workflowId,
+                  workspaceId:
+                    input.workspaceId,
+                  name: input.name,
+                  description:
+                    input.description ||
+                    null,
+                  status: "DRAFT",
+                  createdBy:
+                    ctx.session.user.id,
+                })
+                .returning();
+              const [
+                initialVersion,
+              ] = await transaction
+                .insert(
+                  workflowVersion
+                )
+                .values({
+                  id: versionId,
+                  workflowId,
+                  version: 1,
+                  status: "DRAFT",
+                  definition: {
+                    nodes:
+                      parsedDefinition
+                        .data.nodes,
+                    edges:
+                      parsedDefinition
+                        .data.edges,
+                  },
+                  createdBy:
+                    ctx.session.user.id,
+                })
+                .returning();
+              if (
+                !createdWorkflow ||
+                !initialVersion
+              ) {
+                throw new TRPCError({
+                  code:
+                    "INTERNAL_SERVER_ERROR",
+                  message:
+                    "Failed to create the generated workflow.",
+                });
+              }
+              return {
+                ...createdWorkflow,
+                version:
+                  initialVersion,
+              };
+            }
+          );
+        }
+      ),
   create: protectedProcedure
     .input(createWorkflowSchema)
     .mutation(async ({ ctx, input }) => {
@@ -329,13 +446,10 @@ export const workflowRouter = router({
         permission:
           "workflow:create",
       });
-
       const workflowId =
         crypto.randomUUID();
-
       const versionId =
         crypto.randomUUID();
-
       return ctx.db.transaction(
         async (transaction) => {
           const [createdWorkflow] =
@@ -354,7 +468,6 @@ export const workflowRouter = router({
                   ctx.session.user.id,
               })
               .returning();
-
           const [initialVersion] =
             await transaction
               .insert(
@@ -373,7 +486,6 @@ export const workflowRouter = router({
                   ctx.session.user.id,
               })
               .returning();
-
           if (
             !createdWorkflow ||
             !initialVersion
@@ -385,7 +497,6 @@ export const workflowRouter = router({
                 "Failed to create workflow.",
             });
           }
-
           return {
             ...createdWorkflow,
             version:
@@ -394,7 +505,6 @@ export const workflowRouter = router({
         }
       );
     }),
-
   update: protectedProcedure
     .input(updateWorkflowSchema)
     .mutation(async ({ ctx, input }) => {
@@ -409,7 +519,6 @@ export const workflowRouter = router({
             )
           )
           .limit(1);
-
       if (!existingWorkflow) {
         throw new TRPCError({
           code: "NOT_FOUND",
@@ -417,7 +526,6 @@ export const workflowRouter = router({
             "Workflow not found.",
         });
       }
-
       if (
         existingWorkflow.status ===
         "ARCHIVED"
@@ -428,7 +536,6 @@ export const workflowRouter = router({
             "Archived workflows cannot be edited.",
         });
       }
-
       await requireWorkspacePermission({
         database: ctx.db,
         workspaceId:
@@ -438,19 +545,16 @@ export const workflowRouter = router({
         permission:
           "workflow:update",
       });
-
       const changes: Partial<
         typeof workflow.$inferInsert
       > = {
         updatedAt: new Date(),
       };
-
       if (
         input.name !== undefined
       ) {
         changes.name = input.name;
       }
-
       if (
         input.description !==
         undefined
@@ -458,7 +562,6 @@ export const workflowRouter = router({
         changes.description =
           input.description;
       }
-
       const [updatedWorkflow] =
         await ctx.db
           .update(workflow)
@@ -470,7 +573,6 @@ export const workflowRouter = router({
             )
           )
           .returning();
-
       if (!updatedWorkflow) {
         throw new TRPCError({
           code:
@@ -479,10 +581,8 @@ export const workflowRouter = router({
             "Failed to update workflow.",
         });
       }
-
       return updatedWorkflow;
     }),
-
   saveDefinition:
     protectedProcedure
       .input(
@@ -502,7 +602,6 @@ export const workflowRouter = router({
               )
             )
             .limit(1);
-
           if (!existingWorkflow) {
             throw new TRPCError({
               code: "NOT_FOUND",
@@ -510,7 +609,6 @@ export const workflowRouter = router({
                 "Workflow not found.",
             });
           }
-
           if (
             existingWorkflow.status ===
             "ARCHIVED"
@@ -521,7 +619,6 @@ export const workflowRouter = router({
                 "Archived workflows cannot be edited.",
             });
           }
-
           await requireWorkspacePermission(
             {
               database: ctx.db,
@@ -533,7 +630,6 @@ export const workflowRouter = router({
                 "workflow:update",
             }
           );
-
           return ctx.db.transaction(
             async (transaction) => {
               const [
@@ -555,7 +651,6 @@ export const workflowRouter = router({
                   )
                 )
                 .limit(1);
-
               const definition = {
                 nodes: input.nodes,
                 edges: input.edges,
@@ -564,7 +659,6 @@ export const workflowRouter = router({
                     ?.definition
                     .variables ?? {},
               };
-
               const [savedVersion] =
                 latestVersion?.status ===
                 "DRAFT"
@@ -603,7 +697,6 @@ export const workflowRouter = router({
                             .user.id,
                       })
                       .returning();
-
               if (!savedVersion) {
                 throw new TRPCError({
                   code:
@@ -612,7 +705,6 @@ export const workflowRouter = router({
                     "Failed to save workflow definition.",
                 });
               }
-
               await transaction
                 .update(workflow)
                 .set({
@@ -625,13 +717,11 @@ export const workflowRouter = router({
                     input.id
                   )
                 );
-
               return savedVersion;
             }
           );
         }
       ),
-
   publish: protectedProcedure
     .input(workflowIdSchema)
     .mutation(async ({ ctx, input }) => {
@@ -646,7 +736,6 @@ export const workflowRouter = router({
             )
           )
           .limit(1);
-
       if (!existingWorkflow) {
         throw new TRPCError({
           code: "NOT_FOUND",
@@ -654,7 +743,6 @@ export const workflowRouter = router({
             "Workflow not found.",
         });
       }
-
       if (
         existingWorkflow.status ===
         "ARCHIVED"
@@ -665,7 +753,6 @@ export const workflowRouter = router({
             "Archived workflows cannot be published.",
         });
       }
-
       await requireWorkspacePermission({
         database: ctx.db,
         workspaceId:
@@ -675,7 +762,6 @@ export const workflowRouter = router({
         permission:
           "workflow:update",
       });
-
       return ctx.db.transaction(
         async (transaction) => {
           const [latestDraft] =
@@ -702,7 +788,6 @@ export const workflowRouter = router({
                 )
               )
               .limit(1);
-
           if (!latestDraft) {
             throw new TRPCError({
               code: "BAD_REQUEST",
@@ -710,13 +795,11 @@ export const workflowRouter = router({
                 "This workflow has no draft version to publish.",
             });
           }
-
           const validation =
             validateWorkflowForPublish(
               input.id,
               latestDraft.definition
             );
-
           if (!validation.valid) {
             throw new TRPCError({
               code: "BAD_REQUEST",
@@ -724,7 +807,6 @@ export const workflowRouter = router({
                 validation.message,
             });
           }
-
           const [
             publishedVersion,
           ] = await transaction
@@ -749,7 +831,6 @@ export const workflowRouter = router({
               )
             )
             .returning();
-
           if (!publishedVersion) {
             throw new TRPCError({
               code: "CONFLICT",
@@ -757,7 +838,6 @@ export const workflowRouter = router({
                 "The draft changed while it was being published.",
             });
           }
-
           const [
             activeWorkflow,
           ] = await transaction
@@ -774,7 +854,6 @@ export const workflowRouter = router({
               )
             )
             .returning();
-
           if (!activeWorkflow) {
             throw new TRPCError({
               code:
@@ -783,7 +862,6 @@ export const workflowRouter = router({
                 "Failed to activate the workflow.",
             });
           }
-
           return {
             workflow:
               activeWorkflow,
@@ -793,7 +871,6 @@ export const workflowRouter = router({
         }
       );
     }),
-
   executeManual:
     protectedProcedure
       .input(executeWorkflowSchema)
@@ -817,7 +894,6 @@ export const workflowRouter = router({
               )
             )
             .limit(1);
-
           if (!existingWorkflow) {
             throw new TRPCError({
               code: "NOT_FOUND",
@@ -825,7 +901,6 @@ export const workflowRouter = router({
                 "Workflow not found.",
             });
           }
-
           await requireWorkspacePermission(
             {
               database: ctx.db,
@@ -837,7 +912,6 @@ export const workflowRouter = router({
                 "workflow:execute",
             }
           );
-
           if (
             existingWorkflow.status !==
             "ACTIVE"
@@ -848,7 +922,6 @@ export const workflowRouter = router({
                 "Only active workflows can be executed.",
             });
           }
-
           try {
             return await queueWorkflowRun(
               {
@@ -877,13 +950,11 @@ export const workflowRouter = router({
                   cause: error,
                 });
               }
-
               const isExecutionStateError =
                 error.message ===
                   "Only active workflows can be executed." ||
                 error.message ===
                   "The workflow has no published version.";
-
               throw new TRPCError({
                 code:
                   isExecutionStateError
@@ -896,12 +967,10 @@ export const workflowRouter = router({
                 cause: error,
               });
             }
-
             throw error;
           }
         }
       ),
-
   listRuns: protectedProcedure
     .input(listWorkflowRunsSchema)
     .query(async ({ ctx, input }) => {
@@ -920,7 +989,6 @@ export const workflowRouter = router({
             )
           )
           .limit(1);
-
       if (!existingWorkflow) {
         throw new TRPCError({
           code: "NOT_FOUND",
@@ -928,7 +996,6 @@ export const workflowRouter = router({
             "Workflow not found.",
         });
       }
-
       await requireWorkspacePermission({
         database: ctx.db,
         workspaceId:
@@ -938,7 +1005,6 @@ export const workflowRouter = router({
         permission:
           "workflow:read",
       });
-
       return ctx.db
         .select({
           id: workflowRun.id,
@@ -977,7 +1043,6 @@ export const workflowRouter = router({
         )
         .limit(input.limit);
     }),
-
   getRunById:
     protectedProcedure
       .input(workflowRunIdSchema)
@@ -994,7 +1059,6 @@ export const workflowRouter = router({
                 )
               )
               .limit(1);
-
           if (!run) {
             throw new TRPCError({
               code: "NOT_FOUND",
@@ -1002,7 +1066,6 @@ export const workflowRouter = router({
                 "Workflow run not found.",
             });
           }
-
           const [
             existingWorkflow,
           ] = await ctx.db
@@ -1019,7 +1082,6 @@ export const workflowRouter = router({
               )
             )
             .limit(1);
-
           if (!existingWorkflow) {
             throw new TRPCError({
               code: "NOT_FOUND",
@@ -1027,7 +1089,6 @@ export const workflowRouter = router({
                 "Workflow not found.",
             });
           }
-
           await requireWorkspacePermission(
             {
               database: ctx.db,
@@ -1039,7 +1100,6 @@ export const workflowRouter = router({
                 "workflow:read",
             }
           );
-
           const [
             versionRows,
             steps,
@@ -1063,7 +1123,6 @@ export const workflowRouter = router({
                 )
               )
               .limit(1),
-
             ctx.db
               .select()
               .from(
@@ -1080,7 +1139,6 @@ export const workflowRouter = router({
                   workflowRunStep.createdAt
                 )
               ),
-
             ctx.db
               .select()
               .from(workflowLog)
@@ -1096,16 +1154,13 @@ export const workflowRouter = router({
                 )
               ),
           ]);
-
           const version =
             versionRows[0] ?? null;
-
           const nodeLabels =
             createNodeLabelMap(
               version?.definition
                 .nodes ?? []
             );
-
           return {
             ...run,
             workflowVersionNumber:
@@ -1124,7 +1179,6 @@ export const workflowRouter = router({
           };
         }
       ),
-
   archive: protectedProcedure
     .input(archiveWorkflowSchema)
     .mutation(async ({ ctx, input }) => {
@@ -1139,7 +1193,6 @@ export const workflowRouter = router({
             )
           )
           .limit(1);
-
       if (!existingWorkflow) {
         throw new TRPCError({
           code: "NOT_FOUND",
@@ -1147,7 +1200,6 @@ export const workflowRouter = router({
             "Workflow not found.",
         });
       }
-
       await requireWorkspacePermission({
         database: ctx.db,
         workspaceId:
@@ -1157,7 +1209,6 @@ export const workflowRouter = router({
         permission:
           "workflow:delete",
       });
-
       const [archivedWorkflow] =
         await ctx.db
           .update(workflow)
@@ -1172,7 +1223,6 @@ export const workflowRouter = router({
             )
           )
           .returning();
-
       if (!archivedWorkflow) {
         throw new TRPCError({
           code:
@@ -1181,10 +1231,8 @@ export const workflowRouter = router({
             "Failed to archive workflow.",
         });
       }
-
       return archivedWorkflow;
     }),
-
   delete: protectedProcedure
     .input(deleteWorkflowSchema)
     .mutation(async ({ ctx, input }) => {
@@ -1199,7 +1247,6 @@ export const workflowRouter = router({
             )
           )
           .limit(1);
-
       if (!existingWorkflow) {
         throw new TRPCError({
           code: "NOT_FOUND",
@@ -1207,7 +1254,6 @@ export const workflowRouter = router({
             "Workflow not found.",
         });
       }
-
       await requireWorkspacePermission({
         database: ctx.db,
         workspaceId:
@@ -1217,7 +1263,6 @@ export const workflowRouter = router({
         permission:
           "workflow:delete",
       });
-
       await ctx.db
         .delete(workflow)
         .where(
@@ -1226,7 +1271,6 @@ export const workflowRouter = router({
             input.id
           )
         );
-
       return {
         success: true,
         id: input.id,

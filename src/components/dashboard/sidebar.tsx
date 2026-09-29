@@ -16,12 +16,14 @@ import {
   LayoutTemplate,
   Mail,
   MessageSquare,
+  Plus,
   TicketCheck,
 } from "lucide-react";
 
 import {
   Sidebar,
   SidebarContent,
+  SidebarFooter,
   SidebarGroup,
   SidebarGroupContent,
   SidebarGroupLabel,
@@ -33,8 +35,10 @@ import {
   SidebarMenuSub,
   SidebarMenuSubButton,
   SidebarMenuSubItem,
+  SidebarRail,
 } from "@/components/ui/sidebar";
 import {
+  managementNavigation,
   navigation,
 } from "@/constants/navigations";
 
@@ -60,13 +64,13 @@ function TemplateLogos({
   return (
     <span className="flex w-8 shrink-0 items-center">
       <span
-        className={`relative z-10 flex size-5 items-center justify-center rounded-md border border-sidebar ${firstClassName}`}
+        className={`relative z-10 flex size-5 items-center justify-center rounded border border-sidebar ${firstClassName}`}
       >
         {first}
       </span>
 
       <span
-        className={`-ml-1.5 flex size-5 items-center justify-center rounded-md border border-sidebar ${secondClassName}`}
+        className={`-ml-1.5 flex size-5 items-center justify-center rounded border border-sidebar ${secondClassName}`}
       >
         {second}
       </span>
@@ -142,27 +146,50 @@ export function AppSidebar() {
 
   return (
     <Sidebar collapsible="icon">
-      <SidebarHeader className="flex h-16 justify-center border-b px-3 py-2">
-        <Link
-          href="/dashboard"
-          className="flex min-w-0 items-center gap-3 overflow-hidden rounded-lg px-1 py-1.5"
-        >
-          <span className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-primary text-sm font-bold text-primary-foreground shadow-sm">
-            S
-          </span>
+      <SidebarHeader className="border-b p-2">
+        <SidebarMenu>
+          <SidebarMenuItem>
+            <SidebarMenuButton
+              size="lg"
+              tooltip="Synapse home"
+              render={
+                <Link href="/dashboard" />
+              }
+              className="h-11"
+            >
+              <span className="flex size-8 shrink-0 items-center justify-center rounded-md bg-foreground text-sm font-bold text-background">
+                S
+              </span>
 
-          <span className="truncate text-lg font-bold tracking-tight group-data-[collapsible=icon]:hidden">
-            Synapse
-          </span>
-        </Link>
+              <span className="truncate text-base font-semibold tracking-tight">
+                Synapse
+              </span>
+            </SidebarMenuButton>
+          </SidebarMenuItem>
+        </SidebarMenu>
+
+        <SidebarMenu className="mt-1">
+          <SidebarMenuItem>
+            <SidebarMenuButton
+              size="lg"
+              tooltip="Create workflow"
+              render={
+                <Link href="/workspaces" />
+              }
+              className="h-10 bg-primary text-primary-foreground hover:bg-primary/90 hover:text-primary-foreground active:bg-primary/90 active:text-primary-foreground"
+            >
+              <Plus className="size-4" />
+
+              <span>
+                Create workflow
+              </span>
+            </SidebarMenuButton>
+          </SidebarMenuItem>
+        </SidebarMenu>
       </SidebarHeader>
 
-      <SidebarContent className="gap-4 px-2 py-3">
+      <SidebarContent className="gap-1 px-2 py-3">
         <SidebarGroup className="p-0">
-          <SidebarGroupLabel>
-            Workspace
-          </SidebarGroupLabel>
-
           <SidebarGroupContent>
             <SidebarMenu>
               {navigation.map(
@@ -173,8 +200,12 @@ export function AppSidebar() {
                   const isActive =
                     pathname ===
                       item.href ||
-                    pathname.startsWith(
-                      `${item.href}/`
+                    (
+                      item.href !==
+                        "/dashboard" &&
+                      pathname.startsWith(
+                        `${item.href}/`
+                      )
                     );
 
                   return (
@@ -206,24 +237,14 @@ export function AppSidebar() {
                   );
                 }
               )}
-            </SidebarMenu>
-          </SidebarGroupContent>
-        </SidebarGroup>
 
-        <SidebarGroup className="p-0">
-          <SidebarGroupLabel>
-            Templates
-          </SidebarGroupLabel>
-
-          <SidebarGroupContent>
-            <SidebarMenu>
               <SidebarMenuItem>
                 <SidebarMenuButton
                   isActive={
                     pathname ===
                     "/templates"
                   }
-                  tooltip="Browse templates"
+                  tooltip="Templates"
                   render={
                     <Link href="/templates" />
                   }
@@ -231,7 +252,7 @@ export function AppSidebar() {
                   <LayoutTemplate className="size-4" />
 
                   <span>
-                    Browse templates
+                    Templates
                   </span>
                 </SidebarMenuButton>
 
@@ -250,12 +271,12 @@ export function AppSidebar() {
                       ? "Collapse templates"
                       : "Expand templates"
                   }
-                  onClick={() =>
+                  onClick={() => {
                     setTemplatesOpen(
                       (current) =>
                         !current
-                    )
-                  }
+                    );
+                  }}
                 >
                   <ChevronDown
                     className={`size-4 transition-transform duration-200 ${
@@ -303,7 +324,76 @@ export function AppSidebar() {
             </SidebarMenu>
           </SidebarGroupContent>
         </SidebarGroup>
+
+        <SidebarGroup className="mt-2 border-t p-0 pt-3">
+          <SidebarGroupLabel>
+            Manage
+          </SidebarGroupLabel>
+
+          <SidebarGroupContent>
+            <SidebarMenu>
+              {managementNavigation.map(
+                (item) => {
+                  const Icon =
+                    item.icon;
+
+                  return (
+                    <SidebarMenuItem
+                      key={item.title}
+                    >
+                      <SidebarMenuButton
+                        tooltip={
+                          item.title
+                        }
+                        render={
+                          <Link
+                            href={
+                              item.href
+                            }
+                          />
+                        }
+                      >
+                        <Icon className="size-4" />
+
+                        <span>
+                          {item.title}
+                        </span>
+                      </SidebarMenuButton>
+                    </SidebarMenuItem>
+                  );
+                }
+              )}
+            </SidebarMenu>
+          </SidebarGroupContent>
+        </SidebarGroup>
       </SidebarContent>
+
+      <SidebarFooter className="border-t p-3">
+        <div className="space-y-2 group-data-[collapsible=icon]:hidden">
+          <div className="flex items-center justify-between text-xs">
+            <span className="font-medium">
+              Current plan
+            </span>
+
+            <span className="text-muted-foreground">
+              Free
+            </span>
+          </div>
+
+          <div className="h-1.5 overflow-hidden rounded-full bg-muted">
+            <div className="h-full w-1/4 rounded-full bg-primary" />
+          </div>
+
+          <Link
+            href="/workspaces?section=billing"
+            className="block text-xs font-medium text-muted-foreground hover:text-foreground"
+          >
+            View billing and usage
+          </Link>
+        </div>
+      </SidebarFooter>
+
+      <SidebarRail />
     </Sidebar>
   );
 }

@@ -1,4 +1,10 @@
+import {
+  headers,
+} from "next/headers";
 import Link from "next/link";
+import {
+  redirect,
+} from "next/navigation";
 import {
   ArrowRight,
   Bot,
@@ -14,6 +20,8 @@ import {
   Workflow,
   Zap,
 } from "lucide-react";
+
+import { auth } from "@/lib/auth";
 
 const integrations = [
   {
@@ -64,7 +72,7 @@ const integrations = [
     color:
       "bg-emerald-500/10 text-emerald-600",
   },
-];
+] as const;
 
 const templates = [
   {
@@ -96,9 +104,39 @@ const templates = [
       "Jira",
     ],
   },
-];
+] as const;
 
-export default function Home() {
+const workflowSteps = [
+  {
+    number: "01",
+    title: "Choose a trigger",
+    description:
+      "Start manually or from Gmail, Google Forms, Calendar, Sheets, GitHub, Jira or Trello.",
+  },
+  {
+    number: "02",
+    title: "Add actions and AI",
+    description:
+      "Map data between steps, call AI models and send results to your connected tools.",
+  },
+  {
+    number: "03",
+    title: "Publish and monitor",
+    description:
+      "Run reliably with retries, execution logs, version history and usage tracking.",
+  },
+] as const;
+
+export default async function Home() {
+  const session =
+    await auth.api.getSession({
+      headers: await headers(),
+    });
+
+  if (session) {
+    redirect("/dashboard");
+  }
+
   return (
     <div
       className="min-h-screen bg-white text-zinc-950"
@@ -180,8 +218,8 @@ export default function Home() {
               </div>
 
               <h1 className="mt-6 max-w-3xl text-4xl font-bold leading-[1.08] tracking-[-0.04em] sm:text-5xl lg:text-6xl">
-                Automate work without
-                writing integration code.
+                Automate work without writing
+                integration code.
               </h1>
 
               <p className="mt-6 max-w-xl text-lg leading-8 text-zinc-600">
@@ -372,43 +410,26 @@ export default function Home() {
             </div>
 
             <div className="mt-12 grid gap-5 md:grid-cols-3">
-              {[
-                {
-                  number: "01",
-                  title: "Choose a trigger",
-                  description:
-                    "Start manually or from Gmail, Google Forms, Calendar, Sheets, GitHub, Jira or Trello.",
-                },
-                {
-                  number: "02",
-                  title: "Add actions and AI",
-                  description:
-                    "Map data between steps, call AI models and send results to your connected tools.",
-                },
-                {
-                  number: "03",
-                  title: "Publish and monitor",
-                  description:
-                    "Run reliably with retries, execution logs, version history and usage tracking.",
-                },
-              ].map((item) => (
-                <article
-                  key={item.number}
-                  className="rounded-2xl border border-zinc-200 bg-white p-6"
-                >
-                  <span className="text-sm font-bold text-violet-600">
-                    {item.number}
-                  </span>
+              {workflowSteps.map(
+                (item) => (
+                  <article
+                    key={item.number}
+                    className="rounded-2xl border border-zinc-200 bg-white p-6"
+                  >
+                    <span className="text-sm font-bold text-violet-600">
+                      {item.number}
+                    </span>
 
-                  <h3 className="mt-5 text-lg font-semibold">
-                    {item.title}
-                  </h3>
+                    <h3 className="mt-5 text-lg font-semibold">
+                      {item.title}
+                    </h3>
 
-                  <p className="mt-2 text-sm leading-6 text-zinc-600">
-                    {item.description}
-                  </p>
-                </article>
-              ))}
+                    <p className="mt-2 text-sm leading-6 text-zinc-600">
+                      {item.description}
+                    </p>
+                  </article>
+                )
+              )}
             </div>
           </div>
         </section>
@@ -432,8 +453,8 @@ export default function Home() {
 
               <p className="max-w-md text-sm leading-6 text-zinc-600">
                 Securely connect communication,
-                productivity, development and AI
-                providers to one workflow.
+                productivity, development and
+                AI providers to one workflow.
               </p>
             </div>
 
@@ -456,9 +477,7 @@ export default function Home() {
 
                       <div>
                         <h3 className="font-semibold">
-                          {
-                            integration.name
-                          }
+                          {integration.name}
                         </h3>
 
                         <p className="mt-1 text-sm leading-6 text-zinc-600">
@@ -512,9 +531,7 @@ export default function Home() {
                     </h3>
 
                     <p className="mt-2 text-sm leading-6 text-zinc-400">
-                      {
-                        template.description
-                      }
+                      {template.description}
                     </p>
 
                     <div className="mt-5 flex flex-wrap items-center gap-2">

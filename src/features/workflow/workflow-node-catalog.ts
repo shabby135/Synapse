@@ -129,7 +129,7 @@ export function createActionConfiguration(
         actionType,
         provider: "GEMINI",
         model:
-          "gemini-3-flash-preview",
+          "gemini-3.8-flash",
         systemPrompt:
           "You are a helpful assistant.",
         prompt:

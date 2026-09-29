@@ -20,7 +20,7 @@ const DEFAULT_MODELS: Record<
   string
 > = {
   OPENAI: "gpt-4.1-mini",
-  GEMINI: "gemini-3-flash-preview",
+  GEMINI: "gemini-3.8-flash",
   CLAUDE:
     "claude-haiku-4-5-20251001",
 };

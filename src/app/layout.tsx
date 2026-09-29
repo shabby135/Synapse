@@ -1,26 +1,27 @@
-import type { Metadata } from "next";
+import type {
+  Metadata,
+} from "next";
 import {
-  Geist,
-  Geist_Mono,
-} from "next/font/google";
+  GeistSans,
+} from "geist/font/sans";
+import {
+  GeistMono,
+} from "geist/font/mono";
 
-import { ThemeProvider } from "@/providers/theme-provider";
-import { Providers } from "@/providers/trpc-provider";
-
-import { Toaster } from "@/components/ui/sonner";
-import { TooltipProvider } from "@/components/ui/tooltip";
+import {
+  Toaster,
+} from "@/components/ui/sonner";
+import {
+  TooltipProvider,
+} from "@/components/ui/tooltip";
+import {
+  ThemeProvider,
+} from "@/providers/theme-provider";
+import {
+  Providers,
+} from "@/providers/trpc-provider";
 
 import "./globals.css";
-
-const geistSans = Geist({
-  variable: "--font-geist-sans",
-  subsets: ["latin"],
-});
-
-const geistMono = Geist_Mono({
-  variable: "--font-geist-mono",
-  subsets: ["latin"],
-});
 
 export const metadata: Metadata = {
   title: {
@@ -42,7 +43,7 @@ export default function RootLayout({
       suppressHydrationWarning
     >
       <body
-        className={`${geistSans.variable} ${geistMono.variable} min-h-svh bg-background font-sans text-foreground antialiased`}
+        className={`${GeistSans.variable} ${GeistMono.variable} antialiased`}
       >
         <ThemeProvider>
           <Providers>

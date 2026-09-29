@@ -1,4 +1,6 @@
-import type { WorkflowNodeData } from "./types";
+import type {
+  WorkflowNodeData,
+} from "./types";
 
 export type AiProvider =
   | "OPENAI"
@@ -18,12 +20,19 @@ const DEFAULT_MODELS: Record<
   string
 > = {
   OPENAI: "gpt-4.1-mini",
-  GEMINI: "gemini-3-flash-preview",
+  GEMINI: "gemini-3.8-flash",
   CLAUDE:
     "claude-haiku-4-5-20251001",
 };
 
-const DEFAULT_MAX_OUTPUT_TOKENS = 1000;
+const LEGACY_GEMINI_MODELS =
+  new Set([
+    "gemini-2.5-flash",
+    "gemini-3-flash-preview",
+  ]);
+
+const DEFAULT_MAX_OUTPUT_TOKENS =
+  1_000;
 
 const MAX_PROMPT_LENGTH = 20_000;
 const MAX_SYSTEM_PROMPT_LENGTH =
@@ -58,21 +67,57 @@ function resolveProvider(
   }
 
   if (typeof model === "string") {
+    const normalizedModel =
+      model.trim().toLowerCase();
+
     if (
-      model.startsWith("gpt-") ||
-      model.startsWith("o")
+      normalizedModel.startsWith(
+        "gpt-"
+      ) ||
+      normalizedModel.startsWith("o")
     ) {
       return "OPENAI";
     }
 
     if (
-      model.startsWith("claude-")
+      normalizedModel.startsWith(
+        "claude-"
+      )
     ) {
       return "CLAUDE";
+    }
+
+    if (
+      normalizedModel.startsWith(
+        "gemini-"
+      )
+    ) {
+      return "GEMINI";
     }
   }
 
   return "GEMINI";
+}
+
+function resolveModel(
+  provider: AiProvider,
+  model: unknown
+): string {
+  const configuredModel = readString(
+    model,
+    DEFAULT_MODELS[provider]
+  );
+
+  if (
+    provider === "GEMINI" &&
+    LEGACY_GEMINI_MODELS.has(
+      configuredModel
+    )
+  ) {
+    return DEFAULT_MODELS.GEMINI;
+  }
+
+  return configuredModel;
 }
 
 function readNumber(
@@ -96,9 +141,9 @@ export function parseAiPromptConfiguration(
     configuration.model
   );
 
-  const model = readString(
-    configuration.model,
-    DEFAULT_MODELS[provider]
+  const model = resolveModel(
+    provider,
+    configuration.model
   );
 
   const systemPrompt = readString(
@@ -150,7 +195,9 @@ export function parseAiPromptConfiguration(
   }
 
   if (
-    !Number.isInteger(maxOutputTokens) ||
+    !Number.isInteger(
+      maxOutputTokens
+    ) ||
     maxOutputTokens < 1 ||
     maxOutputTokens > 16_000
   ) {

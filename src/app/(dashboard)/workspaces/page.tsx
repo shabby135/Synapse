@@ -1,8 +1,37 @@
-import { CreateWorkspaceForm } from "@/features/workspace/components/create-workspace-form";
-import { WorkspaceList } from "@/features/workspace/components/workspace-list";
+import {
+  AssistantWorkflowCreator,
+} from "@/features/workspace/components/assistant-workflow-creator";
+import {
+  CreateWorkspaceForm,
+} from "@/features/workspace/components/create-workspace-form";
+import {
+  WorkspaceList,
+} from "@/features/workspace/components/workspace-list";
 
+type WorkspacesPageProps = {
+  searchParams: Promise<{
+    create?:
+      | string
+      | string[];
+  }>;
+};
 
-export default function WorkspacesPage() {
+export default async function WorkspacesPage({
+  searchParams,
+}: WorkspacesPageProps) {
+  const parameters =
+    await searchParams;
+
+  const createMode =
+    Array.isArray(
+      parameters.create
+    )
+      ? parameters.create[0]
+      : parameters.create;
+
+  const showAssistant =
+    createMode === "assistant";
+
   return (
     <div className="space-y-6">
       <div>
@@ -11,10 +40,15 @@ export default function WorkspacesPage() {
         </h2>
 
         <p className="mt-2 text-muted-foreground">
-          Create and manage the spaces that
-          contain your Synapse projects.
+          Create and manage the spaces
+          that contain your Synapse
+          projects.
         </p>
       </div>
+
+      {showAssistant && (
+        <AssistantWorkflowCreator />
+      )}
 
       <CreateWorkspaceForm />
 
@@ -25,8 +59,9 @@ export default function WorkspacesPage() {
           </h3>
 
           <p className="text-sm text-muted-foreground">
-            Workspaces contain workflows,
-            integrations and members.
+            Workspaces contain
+            workflows, integrations and
+            members.
           </p>
         </div>
 
