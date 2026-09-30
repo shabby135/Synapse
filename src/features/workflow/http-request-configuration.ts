@@ -1,4 +1,6 @@
-import type { WorkflowNodeData } from "./types";
+import type {
+  WorkflowNodeData,
+} from "./types";
 
 const ALLOWED_METHODS =
   new Set<string>([
@@ -15,8 +17,10 @@ const BLOCKED_REQUEST_HEADERS =
     "content-length",
     "cookie",
     "host",
+    "proxy-authenticate",
     "proxy-authorization",
     "te",
+    "trailer",
     "transfer-encoding",
     "upgrade",
   ]);
@@ -24,14 +28,27 @@ const BLOCKED_REQUEST_HEADERS =
 const MAX_REQUEST_BODY_BYTES =
   256 * 1024;
 
-const DEFAULT_TIMEOUT_MS = 10_000;
-const MIN_TIMEOUT_MS = 1_000;
-const MAX_TIMEOUT_MS = 30_000;
+const MAX_HEADERS = 50;
+
+const MAX_HEADER_VALUE_LENGTH =
+  8_192;
+
+const DEFAULT_TIMEOUT_MS =
+  10_000;
+
+const MIN_TIMEOUT_MS =
+  1_000;
+
+const MAX_TIMEOUT_MS =
+  30_000;
 
 export type HttpConfiguration = {
   method: string;
   url: URL;
-  headers: Record<string, string>;
+  headers: Record<
+    string,
+    string
+  >;
   body?: string;
   timeoutMs: number;
   failOnHttpError: boolean;
@@ -40,7 +57,9 @@ export type HttpConfiguration = {
 export class HttpActionError extends Error {
   constructor(message: string) {
     super(message);
-    this.name = "HttpActionError";
+
+    this.name =
+      "HttpActionError";
   }
 }
 
@@ -54,7 +73,8 @@ function parseHeaders(
     value.trim()
   ) {
     try {
-      parsed = JSON.parse(value);
+      parsed =
+        JSON.parse(value);
     } catch {
       throw new HttpActionError(
         "HTTP headers must be valid JSON."
@@ -82,9 +102,12 @@ function parseHeaders(
   const entries =
     Object.entries(parsed);
 
-  if (entries.length > 50) {
+  if (
+    entries.length >
+    MAX_HEADERS
+  ) {
     throw new HttpActionError(
-      "HTTP requests cannot contain more than 50 headers."
+      `HTTP requests cannot contain more than ${MAX_HEADERS} headers.`
     );
   }
 
@@ -93,9 +116,17 @@ function parseHeaders(
     string
   > = {};
 
-  for (const [name, value] of entries) {
+  for (
+    const [
+      rawName,
+      value,
+    ] of entries
+  ) {
+    const name =
+      rawName.trim();
+
     const normalizedName =
-      name.trim().toLowerCase();
+      name.toLowerCase();
 
     if (!normalizedName) {
       throw new HttpActionError(
@@ -109,19 +140,34 @@ function parseHeaders(
       )
     ) {
       throw new HttpActionError(
-        `Header ${name} is not allowed.`
+        `Header ${rawName} is not allowed.`
       );
     }
 
-    if (typeof value !== "string") {
+    if (
+      typeof value !==
+      "string"
+    ) {
       throw new HttpActionError(
-        `Header ${name} must contain a string value.`
+        `Header ${rawName} must contain a string value.`
       );
     }
 
-    if (value.length > 8_192) {
+    if (
+      value.length >
+      MAX_HEADER_VALUE_LENGTH
+    ) {
       throw new HttpActionError(
-        `Header ${name} is too large.`
+        `Header ${rawName} is too large.`
+      );
+    }
+
+    if (
+      /[\r\n]/.test(name) ||
+      /[\r\n]/.test(value)
+    ) {
+      throw new HttpActionError(
+        `Header ${rawName} contains invalid characters.`
       );
     }
 
@@ -145,7 +191,11 @@ export function parseHttpActionConfiguration(
           .toUpperCase()
       : "GET";
 
-  if (!ALLOWED_METHODS.has(method)) {
+  if (
+    !ALLOWED_METHODS.has(
+      method
+    )
+  ) {
     throw new HttpActionError(
       `HTTP method ${method} is not supported.`
     );
@@ -173,32 +223,38 @@ export function parseHttpActionConfiguration(
     );
   }
 
+  /*
+   * Production workflow actions should
+   * never transmit credentials over
+   * plaintext HTTP.
+   */
   if (
-    url.protocol !== "https:" &&
-    url.protocol !== "http:"
+    url.protocol !== "https:"
   ) {
     throw new HttpActionError(
-      "Only HTTP and HTTPS URLs are allowed."
+      "HTTP actions require an HTTPS URL."
     );
   }
 
-  if (url.username || url.password) {
+  if (
+    url.username ||
+    url.password
+  ) {
     throw new HttpActionError(
       "URLs cannot contain credentials."
     );
   }
 
-  const expectedPort =
-    url.protocol === "https:"
-      ? "443"
-      : "80";
-
+  /*
+   * Keep the outbound network surface
+   * deliberately narrow.
+   */
   if (
     url.port &&
-    url.port !== expectedPort
+    url.port !== "443"
   ) {
     throw new HttpActionError(
-      "Only ports 80 and 443 are allowed."
+      "Only HTTPS port 443 is allowed."
     );
   }
 
@@ -209,12 +265,16 @@ export function parseHttpActionConfiguration(
       : DEFAULT_TIMEOUT_MS;
 
   if (
-    !Number.isInteger(timeoutMs) ||
-    timeoutMs < MIN_TIMEOUT_MS ||
-    timeoutMs > MAX_TIMEOUT_MS
+    !Number.isInteger(
+      timeoutMs
+    ) ||
+    timeoutMs <
+      MIN_TIMEOUT_MS ||
+    timeoutMs >
+      MAX_TIMEOUT_MS
   ) {
     throw new HttpActionError(
-      "HTTP timeout must be between 1000 and 30000 milliseconds."
+      `HTTP timeout must be between ${MIN_TIMEOUT_MS} and ${MAX_TIMEOUT_MS} milliseconds.`
     );
   }
 
@@ -225,9 +285,10 @@ export function parseHttpActionConfiguration(
       : undefined;
 
   if (
-    body &&
-    new TextEncoder().encode(body)
-      .byteLength >
+    body !== undefined &&
+    new TextEncoder().encode(
+      body
+    ).byteLength >
       MAX_REQUEST_BODY_BYTES
   ) {
     throw new HttpActionError(
@@ -238,13 +299,16 @@ export function parseHttpActionConfiguration(
   return {
     method,
     url,
-    headers: parseHeaders(
-      configuration.headersJson
-    ),
+    headers:
+      parseHeaders(
+        configuration.headersJson
+      ),
     body,
     timeoutMs,
+
     failOnHttpError:
-      configuration.failOnHttpError !==
+      configuration
+        .failOnHttpError !==
       false,
   };
 }

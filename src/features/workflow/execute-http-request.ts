@@ -1,17 +1,35 @@
 import "server-only";
 
-import { lookup } from "node:dns/promises";
-import { isIP } from "node:net";
+import {
+  lookup,
+} from "node:dns/promises";
+import {
+  isIP,
+} from "node:net";
 
 import {
   HttpActionError,
   parseHttpActionConfiguration,
 } from "./http-request-configuration";
-import type { WorkflowNodeData } from "./types";
+import type {
+  WorkflowNodeData,
+} from "./types";
 
 type ExecuteHttpRequestOptions = {
   data: WorkflowNodeData;
-  input: Record<string, unknown>;
+
+  /*
+   * Retained because workflow action
+   * executors use a common invocation
+   * contract.
+   *
+   * Do not automatically include this
+   * value in the HTTP action result.
+   */
+  input: Record<
+    string,
+    unknown
+  >;
 };
 
 const MAX_RESPONSE_BODY_BYTES =
@@ -20,15 +38,18 @@ const MAX_RESPONSE_BODY_BYTES =
 function isPublicIpv4(
   address: string
 ): boolean {
-  const parts = address
-    .split(".")
-    .map(Number);
+  const parts =
+    address
+      .split(".")
+      .map(Number);
 
   if (
     parts.length !== 4 ||
     parts.some(
       (part) =>
-        !Number.isInteger(part) ||
+        !Number.isInteger(
+          part
+        ) ||
         part < 0 ||
         part > 255
     )
@@ -36,8 +57,11 @@ function isPublicIpv4(
     return false;
   }
 
-  const [first, second, third] =
-    parts;
+  const [
+    first,
+    second,
+    third,
+  ] = parts;
 
   if (
     first === undefined ||
@@ -47,6 +71,13 @@ function isPublicIpv4(
     return false;
   }
 
+  /*
+   * Unspecified,
+   * private,
+   * loopback,
+   * multicast,
+   * reserved.
+   */
   if (
     first === 0 ||
     first === 10 ||
@@ -56,6 +87,9 @@ function isPublicIpv4(
     return false;
   }
 
+  /*
+   * Carrier-grade NAT.
+   */
   if (
     first === 100 &&
     second >= 64 &&
@@ -64,6 +98,9 @@ function isPublicIpv4(
     return false;
   }
 
+  /*
+   * Link-local.
+   */
   if (
     first === 169 &&
     second === 254
@@ -71,6 +108,9 @@ function isPublicIpv4(
     return false;
   }
 
+  /*
+   * RFC 1918.
+   */
   if (
     first === 172 &&
     second >= 16 &&
@@ -86,6 +126,9 @@ function isPublicIpv4(
     return false;
   }
 
+  /*
+   * IETF protocol assignments.
+   */
   if (
     first === 192 &&
     second === 0 &&
@@ -94,26 +137,13 @@ function isPublicIpv4(
     return false;
   }
 
+  /*
+   * TEST-NET ranges.
+   */
   if (
     first === 192 &&
     second === 0 &&
     third === 2
-  ) {
-    return false;
-  }
-
-  if (
-    first === 192 &&
-    second === 88 &&
-    third === 99
-  ) {
-    return false;
-  }
-
-  if (
-    first === 198 &&
-    (second === 18 ||
-      second === 19)
   ) {
     return false;
   }
@@ -134,6 +164,30 @@ function isPublicIpv4(
     return false;
   }
 
+  /*
+   * 6to4 relay anycast.
+   */
+  if (
+    first === 192 &&
+    second === 88 &&
+    third === 99
+  ) {
+    return false;
+  }
+
+  /*
+   * Benchmarking networks.
+   */
+  if (
+    first === 198 &&
+    (
+      second === 18 ||
+      second === 19
+    )
+  ) {
+    return false;
+  }
+
   return true;
 }
 
@@ -143,6 +197,11 @@ function isPublicIpv6(
   const normalized =
     address.toLowerCase();
 
+  /*
+   * Unspecified,
+   * loopback,
+   * IPv4 mapped.
+   */
   if (
     normalized === "::" ||
     normalized === "::1" ||
@@ -162,6 +221,10 @@ function isPublicIpv6(
       16
     );
 
+  /*
+   * Only globally routable
+   * 2000::/3.
+   */
   if (
     firstValue < 0x2000 ||
     firstValue > 0x3fff
@@ -169,6 +232,9 @@ function isPublicIpv6(
     return false;
   }
 
+  /*
+   * Documentation prefix.
+   */
   if (
     normalized.startsWith(
       "2001:db8:"
@@ -177,14 +243,24 @@ function isPublicIpv6(
     return false;
   }
 
+  /*
+   * Teredo.
+   */
   if (
-    normalized.startsWith("2001:0:")
+    normalized.startsWith(
+      "2001:0:"
+    )
   ) {
     return false;
   }
 
+  /*
+   * 6to4.
+   */
   if (
-    normalized.startsWith("2002:")
+    normalized.startsWith(
+      "2002:"
+    )
   ) {
     return false;
   }
@@ -195,27 +271,36 @@ function isPublicIpv6(
 function isPublicIp(
   address: string
 ): boolean {
-  const version = isIP(address);
+  const version =
+    isIP(address);
 
   if (version === 4) {
-    return isPublicIpv4(address);
+    return isPublicIpv4(
+      address
+    );
   }
 
   if (version === 6) {
-    return isPublicIpv6(address);
+    return isPublicIpv6(
+      address
+    );
   }
 
   return false;
 }
 
-function getAllowedHosts(): string[] {
+function getAllowedHosts():
+  string[] {
   return (
     process.env
-      .HTTP_ACTION_ALLOWED_HOSTS ?? ""
+      .HTTP_ACTION_ALLOWED_HOSTS ??
+    ""
   )
     .split(",")
     .map((host) =>
-      host.trim().toLowerCase()
+      host
+        .trim()
+        .toLowerCase()
     )
     .filter(Boolean);
 }
@@ -223,14 +308,25 @@ function getAllowedHosts(): string[] {
 async function assertSafeUrl(
   url: URL
 ): Promise<void> {
-  const hostname = url.hostname
-    .replace(/^\[/, "")
-    .replace(/\]$/, "")
-    .toLowerCase();
+  const hostname =
+    url.hostname
+      .replace(
+        /^\[/,
+        ""
+      )
+      .replace(
+        /\]$/,
+        ""
+      )
+      .toLowerCase();
 
   if (
-    hostname === "localhost" ||
-    hostname.endsWith(".localhost")
+    !hostname ||
+    hostname ===
+      "localhost" ||
+    hostname.endsWith(
+      ".localhost"
+    )
   ) {
     throw new HttpActionError(
       "Local network destinations are not allowed."
@@ -242,17 +338,26 @@ async function assertSafeUrl(
 
   if (
     allowedHosts.length > 0 &&
-    !allowedHosts.includes(hostname)
+    !allowedHosts.includes(
+      hostname
+    )
   ) {
     throw new HttpActionError(
       `Host ${hostname} is not allowed.`
     );
   }
 
-  const ipVersion = isIP(hostname);
+  const ipVersion =
+    isIP(hostname);
 
-  if (ipVersion !== 0) {
-    if (!isPublicIp(hostname)) {
+  if (
+    ipVersion !== 0
+  ) {
+    if (
+      !isPublicIp(
+        hostname
+      )
+    ) {
       throw new HttpActionError(
         "Private and reserved IP addresses are not allowed."
       );
@@ -267,20 +372,23 @@ async function assertSafeUrl(
   }>;
 
   try {
-    addresses = await lookup(
-      hostname,
-      {
-        all: true,
-        verbatim: true,
-      }
-    );
+    addresses =
+      await lookup(
+        hostname,
+        {
+          all: true,
+          verbatim: true,
+        }
+      );
   } catch {
     throw new HttpActionError(
       "The destination hostname could not be resolved."
     );
   }
 
-  if (addresses.length === 0) {
+  if (
+    addresses.length === 0
+  ) {
     throw new HttpActionError(
       "The destination hostname could not be resolved."
     );
@@ -289,7 +397,9 @@ async function assertSafeUrl(
   if (
     addresses.some(
       ({ address }) =>
-        !isPublicIp(address)
+        !isPublicIp(
+          address
+        )
     )
   ) {
     throw new HttpActionError(
@@ -308,13 +418,23 @@ async function readLimitedBody(
 
   if (contentLength) {
     const parsedLength =
-      Number(contentLength);
+      Number(
+        contentLength
+      );
 
     if (
-      Number.isFinite(parsedLength) &&
+      Number.isFinite(
+        parsedLength
+      ) &&
       parsedLength >
         MAX_RESPONSE_BODY_BYTES
     ) {
+      await response.body
+        ?.cancel()
+        .catch(
+          () => undefined
+        );
+
       throw new HttpActionError(
         "HTTP response exceeded the 1 MB limit."
       );
@@ -328,50 +448,77 @@ async function readLimitedBody(
   const reader =
     response.body.getReader();
 
-  const chunks: Uint8Array[] = [];
+  const chunks:
+    Uint8Array[] = [];
+
   let totalBytes = 0;
 
-  while (true) {
-    const { done, value } =
-      await reader.read();
+  try {
+    while (true) {
+      const {
+        done,
+        value,
+      } =
+        await reader.read();
 
-    if (done) {
-      break;
+      if (done) {
+        break;
+      }
+
+      if (!value) {
+        continue;
+      }
+
+      totalBytes +=
+        value.byteLength;
+
+      if (
+        totalBytes >
+        MAX_RESPONSE_BODY_BYTES
+      ) {
+        throw new HttpActionError(
+          "HTTP response exceeded the 1 MB limit."
+        );
+      }
+
+      chunks.push(
+        value
+      );
     }
-
-    if (!value) {
-      continue;
-    }
-
-    totalBytes += value.byteLength;
-
+  } finally {
     if (
       totalBytes >
       MAX_RESPONSE_BODY_BYTES
     ) {
-      await reader.cancel();
-
-      throw new HttpActionError(
-        "HTTP response exceeded the 1 MB limit."
-      );
+      await reader
+        .cancel()
+        .catch(
+          () => undefined
+        );
     }
-
-    chunks.push(value);
   }
 
   const combined =
-    new Uint8Array(totalBytes);
+    new Uint8Array(
+      totalBytes
+    );
 
   let offset = 0;
 
-  for (const chunk of chunks) {
-    combined.set(chunk, offset);
-    offset += chunk.byteLength;
+  for (
+    const chunk of chunks
+  ) {
+    combined.set(
+      chunk,
+      offset
+    );
+
+    offset +=
+      chunk.byteLength;
   }
 
-  return new TextDecoder().decode(
-    combined
-  );
+  return new TextDecoder()
+    .decode(combined);
 }
 
 function parseResponseBody(
@@ -383,13 +530,21 @@ function parseResponseBody(
   }
 
   if (
-    contentType.includes(
-      "application/json"
-    )
+    contentType
+      .toLowerCase()
+      .includes(
+        "application/json"
+      )
   ) {
     try {
-      return JSON.parse(body);
+      return JSON.parse(
+        body
+      );
     } catch {
+      /*
+       * Some APIs incorrectly claim
+       * JSON while returning text.
+       */
       return body;
     }
   }
@@ -397,9 +552,29 @@ function parseResponseBody(
   return body;
 }
 
+function safeResponseHeaders(
+  headers: Headers
+): Record<string, string> {
+  const blocked =
+    new Set([
+      "set-cookie",
+      "set-cookie2",
+    ]);
+
+  return Object.fromEntries(
+    [
+      ...headers.entries(),
+    ].filter(
+      ([name]) =>
+        !blocked.has(
+          name.toLowerCase()
+        )
+    )
+  );
+}
+
 export async function executeHttpRequest({
   data,
-  input,
 }: ExecuteHttpRequestOptions): Promise<
   Record<string, unknown>
 > {
@@ -408,39 +583,68 @@ export async function executeHttpRequest({
       data
     );
 
+  /*
+   * This protects against direct
+   * private-IP access and ordinary
+   * DNS-based SSRF.
+   *
+   * A transport-level pinned DNS
+   * resolver should still be considered
+   * later for complete DNS rebinding
+   * protection.
+   */
   await assertSafeUrl(
     configuration.url
   );
 
-  const startedAt = Date.now();
+  const startedAt =
+    Date.now();
 
   let response: Response;
 
   try {
-    response = await fetch(
-      configuration.url,
-      {
-        method:
-          configuration.method,
-        headers:
-          configuration.headers,
-        body:
-          configuration.method ===
-          "GET"
-            ? undefined
-            : configuration.body,
-        redirect: "manual",
-        signal: AbortSignal.timeout(
-          configuration.timeoutMs
-        ),
-      }
-    );
+    response =
+      await fetch(
+        configuration.url,
+        {
+          method:
+            configuration.method,
+
+          headers:
+            configuration.headers,
+
+          body:
+            configuration.method ===
+            "GET"
+              ? undefined
+              : configuration.body,
+
+          /*
+           * Never automatically follow
+           * redirects because the next
+           * destination has not passed
+           * SSRF validation.
+           */
+          redirect: "manual",
+
+          cache: "no-store",
+
+          signal:
+            AbortSignal.timeout(
+              configuration.timeoutMs
+            ),
+        }
+      );
   } catch (error) {
     if (
-      error instanceof DOMException &&
-      (error.name ===
-        "TimeoutError" ||
-        error.name === "AbortError")
+      error instanceof
+        DOMException &&
+      (
+        error.name ===
+          "TimeoutError" ||
+        error.name ===
+          "AbortError"
+      )
     ) {
       throw new HttpActionError(
         `HTTP request timed out after ${configuration.timeoutMs} ms.`
@@ -458,48 +662,56 @@ export async function executeHttpRequest({
     response.status >= 300 &&
     response.status < 400
   ) {
+    await response.body
+      ?.cancel()
+      .catch(
+        () => undefined
+      );
+
     throw new HttpActionError(
       "HTTP redirects are not followed."
     );
   }
 
   const rawBody =
-    await readLimitedBody(response);
+    await readLimitedBody(
+      response
+    );
 
   const contentType =
     response.headers.get(
       "content-type"
     ) ?? "";
 
-  const responseHeaders =
-    Object.fromEntries(
-      [
-        ...response.headers.entries(),
-      ].filter(
-        ([name]) =>
-          name.toLowerCase() !==
-          "set-cookie"
-      )
-    );
-
   const result = {
     ok: response.ok,
-    status: response.status,
+
+    status:
+      response.status,
+
     statusText:
       response.statusText,
-    headers: responseHeaders,
-    body: parseResponseBody(
-      rawBody,
-      contentType
-    ),
+
+    headers:
+      safeResponseHeaders(
+        response.headers
+      ),
+
+    body:
+      parseResponseBody(
+        rawBody,
+        contentType
+      ),
+
     durationMs:
-      Date.now() - startedAt,
-    receivedInput: input,
+      Date.now() -
+      startedAt,
   };
 
   if (
     !response.ok &&
-    configuration.failOnHttpError
+    configuration
+      .failOnHttpError
   ) {
     throw new HttpActionError(
       `HTTP request returned status ${response.status}.`

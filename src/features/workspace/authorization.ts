@@ -1,13 +1,19 @@
-import { TRPCError } from "@trpc/server";
+import {
+  TRPCError,
+} from "@trpc/server";
 
 import {
   and,
   eq,
 } from "drizzle-orm";
 
-import { db } from "@/lib/db";
+import {
+  db,
+} from "@/lib/db";
 
-import { workspaceMember } from "@/lib/db/schema";
+import {
+  workspaceMember,
+} from "@/lib/db/schema";
 
 import {
   hasWorkspacePermission,
@@ -19,7 +25,8 @@ type RequireWorkspacePermissionOptions = {
   database: typeof db;
   workspaceId: string;
   userId: string;
-  permission: WorkspacePermission;
+  permission:
+    WorkspacePermission;
 };
 
 export async function requireWorkspacePermission({
@@ -27,37 +34,55 @@ export async function requireWorkspacePermission({
   workspaceId,
   userId,
   permission,
-}: RequireWorkspacePermissionOptions) {
-  const [membership] =
+}: RequireWorkspacePermissionOptions): Promise<{
+  role: WorkspaceRole;
+}> {
+  const [
+    membership,
+  ] =
     await database
       .select({
-        role: workspaceMember.role,
+        role:
+          workspaceMember.role,
       })
-      .from(workspaceMember)
+      .from(
+        workspaceMember
+      )
       .where(
         and(
           eq(
-            workspaceMember.workspaceId,
+            workspaceMember
+              .workspaceId,
             workspaceId
           ),
+
           eq(
-            workspaceMember.userId,
+            workspaceMember
+              .userId,
             userId
           )
         )
       )
       .limit(1);
 
+  /*
+   * Deliberately avoid revealing
+   * whether an inaccessible workspace
+   * actually exists.
+   */
   if (!membership) {
     throw new TRPCError({
-      code: "NOT_FOUND",
+      code:
+        "NOT_FOUND",
+
       message:
         "Workspace not found or access denied.",
     });
   }
 
   const role =
-    membership.role as WorkspaceRole;
+    membership.role as
+      WorkspaceRole;
 
   if (
     !hasWorkspacePermission(
@@ -66,7 +91,9 @@ export async function requireWorkspacePermission({
     )
   ) {
     throw new TRPCError({
-      code: "FORBIDDEN",
+      code:
+        "FORBIDDEN",
+
       message:
         "You do not have permission to perform this action.",
     });
