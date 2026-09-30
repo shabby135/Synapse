@@ -3,7 +3,9 @@
 import {
   useState,
 } from "react";
+
 import Link from "next/link";
+
 import {
   CheckCircle2,
   Loader2,
@@ -11,15 +13,23 @@ import {
   Mail,
   User,
 } from "lucide-react";
+
 import {
   useForm,
 } from "react-hook-form";
+
 import {
   zodResolver,
 } from "@hookform/resolvers/zod";
 
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
+import {
+  Button,
+} from "@/components/ui/button";
+
+import {
+  Input,
+} from "@/components/ui/input";
+
 import {
   authClient,
 } from "@/lib/auth-client";
@@ -28,6 +38,7 @@ import {
   signUpSchema,
   type SignUpInput,
 } from "../schema";
+
 import {
   SocialAuthButtons,
 } from "./social-auth-buttons";
@@ -39,8 +50,7 @@ function signUpErrorMessage(
   }
 ): string {
   const code =
-    error.code?.toUpperCase() ??
-    "";
+    error.code?.toUpperCase() ?? "";
 
   if (
     code.includes(
@@ -75,7 +85,6 @@ export function SignUpForm() {
     resolver: zodResolver(
       signUpSchema
     ),
-
     defaultValues: {
       name: "",
       email: "",
@@ -94,16 +103,14 @@ export function SignUpForm() {
 
     try {
       const result =
-        await authClient.signUp.email(
-          {
-            name: values.name,
-            email: values.email,
-            password:
-              values.password,
-            callbackURL:
-              "/dashboard",
-          }
-        );
+        await authClient.signUp.email({
+          name: values.name,
+          email: values.email,
+          password:
+            values.password,
+          callbackURL:
+            "/dashboard",
+        });
 
       if (result.error) {
         setServerError(
@@ -137,25 +144,30 @@ export function SignUpForm() {
         </h1>
 
         <p className="mt-3 text-sm leading-6 text-muted-foreground">
-          We sent a verification
-          link to{" "}
+          We have sent a verification
+          mail to{" "}
           <span className="font-medium text-foreground">
             {submittedEmail}
           </span>
-          . Open that link to verify
-          your account.
+          . Open the verification link
+          in that email to verify your
+          account.
         </p>
 
         <p className="mt-3 text-xs leading-5 text-muted-foreground">
-          If the message does not
-          arrive, check your spam
-          folder and confirm that the
-          email address is correct.
+          If you do not see the
+          verification email in your
+          inbox, please check your spam
+          or junk folder. If the email is
+          not there either, the
+          verification email may not have
+          been received.
         </p>
 
         <Button
           className="mt-6 w-full"
           variant="outline"
+          nativeButton={false}
           render={
             <Link href="/sign-in" />
           }
@@ -219,12 +231,9 @@ export function SignUpForm() {
               disabled={isSubmitting}
               placeholder="Your name"
               className="pl-9"
-              aria-invalid={
-                Boolean(
-                  form.formState
-                    .errors.name
-                )
-              }
+              aria-invalid={Boolean(
+                form.formState.errors.name
+              )}
               {...form.register(
                 "name"
               )}
@@ -262,12 +271,9 @@ export function SignUpForm() {
               disabled={isSubmitting}
               placeholder="you@example.com"
               className="pl-9"
-              aria-invalid={
-                Boolean(
-                  form.formState
-                    .errors.email
-                )
-              }
+              aria-invalid={Boolean(
+                form.formState.errors.email
+              )}
               {...form.register(
                 "email"
               )}
@@ -303,12 +309,10 @@ export function SignUpForm() {
               disabled={isSubmitting}
               placeholder="At least 8 characters"
               className="pl-9"
-              aria-invalid={
-                Boolean(
-                  form.formState
-                    .errors.password
-                )
-              }
+              aria-invalid={Boolean(
+                form.formState.errors
+                  .password
+              )}
               {...form.register(
                 "password"
               )}
@@ -344,13 +348,10 @@ export function SignUpForm() {
               disabled={isSubmitting}
               placeholder="Enter the password again"
               className="pl-9"
-              aria-invalid={
-                Boolean(
-                  form.formState
-                    .errors
-                    .confirmPassword
-                )
-              }
+              aria-invalid={Boolean(
+                form.formState.errors
+                  .confirmPassword
+              )}
               {...form.register(
                 "confirmPassword"
               )}
