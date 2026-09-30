@@ -5,26 +5,31 @@ import {
   useMemo,
   useState,
 } from "react";
+
 import Link from "next/link";
-import {
-  useRouter,
-} from "next/navigation";
-import {
-  useQuery,
-} from "@tanstack/react-query";
+import { useRouter } from "next/navigation";
+
+import { useQuery } from "@tanstack/react-query";
+
 import {
   Activity,
   AlertCircle,
   ArrowRight,
   ArrowUp,
+  CalendarDays,
   CheckCircle2,
   Clock3,
+  FileText,
+  GitBranch,
   History,
   LayoutTemplate,
   Loader2,
+  Mail,
   PlugZap,
+  RefreshCw,
   Sparkles,
   Star,
+  Table2,
   Workflow,
   Zap,
 } from "lucide-react";
@@ -54,20 +59,84 @@ const quickActions = [
     icon: LayoutTemplate,
   },
   {
-    title: "Connect an app",
+    title: "Add connection",
     description:
-      "Add Google, Slack and other integrations.",
-    href:
-      "/workspaces?section=connections",
+      "Connect an application to use it in your workflows.",
+    href: "/connections",
     icon: PlugZap,
   },
   {
     title: "View run history",
     description:
       "Inspect recent executions and failures.",
-    href:
-      "/workspaces?section=runs",
+    href: "/runs",
     icon: History,
+  },
+] as const;
+
+/**
+ * Applications currently supported by the
+ * Synapse connection system.
+ *
+ * Connection state is NOT stored here.
+ * It comes from integration.listAll().
+ */
+const applications = [
+  {
+    provider: "SLACK",
+    name: "Slack",
+    description:
+      "Send messages and automate team communication.",
+    icon: Activity,
+  },
+  {
+    provider: "GMAIL",
+    name: "Gmail",
+    description:
+      "Send and automate email workflows.",
+    icon: Mail,
+  },
+  {
+    provider: "GOOGLE_SHEETS",
+    name: "Google Sheets",
+    description:
+      "Read and update spreadsheet data.",
+    icon: Table2,
+  },
+  {
+    provider: "GOOGLE_FORMS",
+    name: "Google Forms",
+    description:
+      "Work with form responses and submissions.",
+    icon: FileText,
+  },
+  {
+    provider: "GOOGLE_CALENDAR",
+    name: "Google Calendar",
+    description:
+      "Automate calendar and event workflows.",
+    icon: CalendarDays,
+  },
+  {
+    provider: "GITHUB",
+    name: "GitHub",
+    description:
+      "Automate repositories and development workflows.",
+    icon: GitBranch,
+  },
+  {
+    provider: "TRELLO",
+    name: "Trello",
+    description:
+      "Organize cards, boards, and task workflows.",
+    icon: LayoutTemplate,
+  },
+  {
+    provider: "JIRA",
+    name: "Jira",
+    description:
+      "Automate issues and project workflows.",
+    icon: Workflow,
   },
 ] as const;
 
@@ -80,9 +149,7 @@ function formatRelativeTime(
   const difference =
     now - date.getTime();
 
-  if (
-    !Number.isFinite(difference)
-  ) {
+  if (!Number.isFinite(difference)) {
     return "Unknown";
   }
 
@@ -182,14 +249,60 @@ function getWorkflowStatusClassName(
   }
 }
 
+function getConnectionStatusLabel(
+  status: string
+): string {
+  switch (status) {
+    case "ACTIVE":
+      return "Connected";
+
+    case "NEEDS_REAUTH":
+      return "Reconnect required";
+
+    case "ERROR":
+      return "Connection error";
+
+    case "DISABLED":
+      return "Disabled";
+
+    default:
+      return "Unknown";
+  }
+}
+
+function getConnectionStatusClassName(
+  status: string
+): string {
+  switch (status) {
+    case "ACTIVE":
+      return "border-emerald-500/20 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300";
+
+    case "NEEDS_REAUTH":
+      return "border-amber-500/20 bg-amber-500/10 text-amber-700 dark:text-amber-300";
+
+    case "ERROR":
+      return "border-destructive/20 bg-destructive/10 text-destructive";
+
+    case "DISABLED":
+      return "border-border bg-muted text-muted-foreground";
+
+    default:
+      return "border-border bg-muted text-muted-foreground";
+  }
+}
+
+type ApplicationConnectionState =
+  | "ACTIVE"
+  | "NEEDS_REAUTH"
+  | "ERROR"
+  | "AVAILABLE";
+
 export function DashboardHome() {
   const router = useRouter();
   const trpc = useTRPC();
 
-  const [
-    prompt,
-    setPrompt,
-  ] = useState("");
+  const [prompt, setPrompt] =
+    useState("");
 
   const workflows = useQuery(
     trpc.workflow.listAll.queryOptions({
@@ -204,6 +317,16 @@ export function DashboardHome() {
     })
   );
 
+  /**
+   * Real connection data used by:
+   *
+   * 1. Applications
+   * 2. Your connections
+   */
+  const integrations = useQuery(
+    trpc.integration.listAll.queryOptions()
+  );
+
   const workflowRows = useMemo(
     () => workflows.data ?? [],
     [workflows.data]
@@ -212,6 +335,11 @@ export function DashboardHome() {
   const runRows = useMemo(
     () => runs.data ?? [],
     [runs.data]
+  );
+
+  const connectionRows = useMemo(
+    () => integrations.data ?? [],
+    [integrations.data]
   );
 
   const statistics = useMemo(() => {
@@ -236,20 +364,16 @@ export function DashboardHome() {
       ).length;
 
     return {
-      workflows:
-        nonArchived.length,
+      workflows: nonArchived.length,
       active,
       runs: runRows.length,
       failedRuns,
     };
-  }, [
-    runRows,
-    workflowRows,
-  ]);
+  }, [runRows, workflowRows]);
 
-  const recentWorkflows =
-    useMemo(() => {
-      return [...workflowRows]
+  const recentWorkflows = useMemo(
+    () =>
+      [...workflowRows]
         .filter(
           (workflowItem) =>
             workflowItem.status !==
@@ -274,14 +398,94 @@ export function DashboardHome() {
             ).getTime()
           );
         })
-        .slice(0, 5);
-    }, [workflowRows]);
+        .slice(0, 5),
+    [workflowRows]
+  );
 
-  const recentRuns =
-    useMemo(
-      () => runRows.slice(0, 5),
-      [runRows]
-    );
+  const recentRuns = useMemo(
+    () => runRows.slice(0, 5),
+    [runRows]
+  );
+
+  /**
+   * Converts real integration records into
+   * application-level connection state.
+   */
+  const applicationStates = useMemo(
+    () =>
+      applications.map(
+        (application) => {
+          const matches =
+            connectionRows.filter(
+              (connection) =>
+                connection.provider ===
+                application.provider
+            );
+
+          const hasActive =
+            matches.some(
+              (connection) =>
+                connection.status ===
+                "ACTIVE"
+            );
+
+          const needsReauth =
+            matches.some(
+              (connection) =>
+                connection.status ===
+                "NEEDS_REAUTH"
+            );
+
+          const hasError =
+            matches.some(
+              (connection) =>
+                connection.status ===
+                "ERROR"
+            );
+
+          let status:
+            ApplicationConnectionState =
+            "AVAILABLE";
+
+          if (needsReauth) {
+            status =
+              "NEEDS_REAUTH";
+          } else if (hasError) {
+            status = "ERROR";
+          } else if (hasActive) {
+            status = "ACTIVE";
+          }
+
+          return {
+            ...application,
+            status,
+            connectionCount:
+              matches.length,
+          };
+        }
+      ),
+    [connectionRows]
+  );
+
+  /**
+   * Actual connections owned by the
+   * available workspace memberships.
+   */
+  const recentConnections = useMemo(
+    () =>
+      [...connectionRows]
+        .sort(
+          (a, b) =>
+            new Date(
+              b.updatedAt
+            ).getTime() -
+            new Date(
+              a.updatedAt
+            ).getTime()
+        )
+        .slice(0, 6),
+    [connectionRows]
+  );
 
   function handleSubmit(
     event: FormEvent<HTMLFormElement>
@@ -309,14 +513,20 @@ export function DashboardHome() {
 
   const loading =
     workflows.isPending ||
-    runs.isPending;
+    runs.isPending ||
+    integrations.isPending;
 
   const error =
     workflows.error ??
-    runs.error;
+    runs.error ??
+    integrations.error;
 
   return (
     <div className="mx-auto w-full max-w-6xl space-y-10 py-4 sm:py-8">
+      {/* =========================================================
+          AI WORKFLOW CREATOR
+      ========================================================== */}
+
       <section className="mx-auto max-w-4xl text-center">
         <div className="mx-auto flex size-10 items-center justify-center rounded-lg border bg-background shadow-sm">
           <Sparkles className="size-5" />
@@ -355,7 +565,7 @@ export function DashboardHome() {
               value={prompt}
               rows={5}
               minLength={10}
-              maxLength={2_000}
+              maxLength={2000}
               aria-label="Describe the workflow you want to create"
               placeholder="For example: Summarize the provided workflow input with AI and send the result to Slack."
               onChange={(event) => {
@@ -414,6 +624,10 @@ export function DashboardHome() {
         </div>
       </section>
 
+      {/* =========================================================
+          QUICK ACTIONS
+      ========================================================== */}
+
       <section>
         <div className="mb-4">
           <h2 className="text-lg font-semibold">
@@ -422,8 +636,9 @@ export function DashboardHome() {
 
           <p className="mt-1 text-sm text-muted-foreground">
             Create manually, use a
-            template, or manage your
-            connected applications.
+            template, connect an
+            application, or inspect
+            previous runs.
           </p>
         </div>
 
@@ -448,9 +663,7 @@ export function DashboardHome() {
                   </h3>
 
                   <p className="mt-1 text-xs leading-5 text-muted-foreground">
-                    {
-                      action.description
-                    }
+                    {action.description}
                   </p>
                 </Link>
               );
@@ -459,11 +672,264 @@ export function DashboardHome() {
         </div>
       </section>
 
+      {/* =========================================================
+          APPLICATIONS
+      ========================================================== */}
+
+      <section>
+        <div className="mb-4 flex items-end justify-between gap-4">
+          <div>
+            <h2 className="text-lg font-semibold">
+              Applications
+            </h2>
+
+            <p className="mt-1 text-sm text-muted-foreground">
+              Applications available to
+              connect with Synapse.
+            </p>
+          </div>
+
+          <Button
+            size="sm"
+            nativeButton={false}
+            render={
+              <Link href="/connections" />
+            }
+          >
+            <PlugZap className="size-4" />
+            Add connection
+          </Button>
+        </div>
+
+        <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+          {applicationStates.map(
+            (application) => {
+              const Icon =
+                application.icon;
+
+              const isConnected =
+                application.status ===
+                "ACTIVE";
+
+              const needsReauth =
+                application.status ===
+                "NEEDS_REAUTH";
+
+              const hasError =
+                application.status ===
+                "ERROR";
+
+              return (
+                <Link
+                  key={
+                    application.provider
+                  }
+                  href="/connections"
+                  className="group rounded-xl border bg-card p-4 transition-colors hover:border-foreground/20 hover:bg-muted/40"
+                >
+                  <div className="flex items-start justify-between gap-4">
+                    <div className="flex size-10 shrink-0 items-center justify-center rounded-lg border bg-background">
+                      <Icon className="size-4" />
+                    </div>
+
+                    <ArrowRight className="size-4 text-muted-foreground transition-transform group-hover:translate-x-0.5 group-hover:text-foreground" />
+                  </div>
+
+                  <div className="mt-4">
+                    <h3 className="text-sm font-semibold">
+                      {application.name}
+                    </h3>
+
+                    <p className="mt-1 min-h-10 text-xs leading-5 text-muted-foreground">
+                      {
+                        application.description
+                      }
+                    </p>
+                  </div>
+
+                  <div className="mt-4 flex items-center justify-between border-t pt-3">
+                    {isConnected ? (
+                      <span className="rounded-full border border-emerald-500/20 bg-emerald-500/10 px-2 py-0.5 text-[10px] font-medium text-emerald-700 dark:text-emerald-300">
+                        {application.connectionCount ===
+                        1
+                          ? "Connected"
+                          : `${application.connectionCount} connections`}
+                      </span>
+                    ) : needsReauth ? (
+                      <span className="flex items-center gap-1.5 rounded-full border border-amber-500/20 bg-amber-500/10 px-2 py-0.5 text-[10px] font-medium text-amber-700 dark:text-amber-300">
+                        <RefreshCw className="size-3" />
+                        Reconnect required
+                      </span>
+                    ) : hasError ? (
+                      <span className="rounded-full border border-destructive/20 bg-destructive/10 px-2 py-0.5 text-[10px] font-medium text-destructive">
+                        Connection error
+                      </span>
+                    ) : (
+                      <span className="rounded-full border bg-muted px-2 py-0.5 text-[10px] font-medium text-muted-foreground">
+                        Not connected
+                      </span>
+                    )}
+
+                    <span className="text-xs font-medium">
+                      {isConnected
+                        ? "Manage"
+                        : needsReauth
+                          ? "Reconnect"
+                          : hasError
+                            ? "Fix"
+                            : "Connect"}
+                    </span>
+                  </div>
+                </Link>
+              );
+            }
+          )}
+        </div>
+      </section>
+
+      {/* =========================================================
+          YOUR CONNECTIONS
+      ========================================================== */}
+
+      <section>
+        <div className="mb-4 flex items-end justify-between gap-4">
+          <div>
+            <h2 className="text-lg font-semibold">
+              Your connections
+            </h2>
+
+            <p className="mt-1 text-sm text-muted-foreground">
+              Applications you have already
+              connected to Synapse.
+            </p>
+          </div>
+
+          <Button
+            variant="ghost"
+            size="sm"
+            nativeButton={false}
+            render={
+              <Link href="/connections" />
+            }
+          >
+            View all
+            <ArrowRight className="size-4" />
+          </Button>
+        </div>
+
+        {recentConnections.length ===
+        0 ? (
+          <div className="rounded-xl border bg-card p-8 text-center">
+            <div className="mx-auto flex size-10 items-center justify-center rounded-lg border bg-background">
+              <PlugZap className="size-5 text-muted-foreground" />
+            </div>
+
+            <h3 className="mt-4 text-sm font-semibold">
+              No connections yet
+            </h3>
+
+            <p className="mx-auto mt-1 max-w-md text-xs leading-5 text-muted-foreground">
+              Connect an application to
+              start using it inside your
+              workflows.
+            </p>
+
+            <Button
+              size="sm"
+              nativeButton={false}
+              render={
+                <Link href="/connections" />
+              }
+              className="mt-4"
+            >
+              <PlugZap className="size-4" />
+              Add your first connection
+            </Button>
+          </div>
+        ) : (
+          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+            {recentConnections.map(
+              (connection) => {
+                const application =
+                  applications.find(
+                    (item) =>
+                      item.provider ===
+                      connection.provider
+                  );
+
+                const Icon =
+                  application?.icon ??
+                  PlugZap;
+
+                return (
+                  <Link
+                    key={connection.id}
+                    href="/connections"
+                    className="group rounded-xl border bg-card p-4 transition-colors hover:border-foreground/20 hover:bg-muted/40"
+                  >
+                    <div className="flex items-start justify-between gap-4">
+                      <div className="flex size-10 shrink-0 items-center justify-center rounded-lg border bg-background">
+                        <Icon className="size-4" />
+                      </div>
+
+                      <span
+                        className={`rounded-full border px-2 py-0.5 text-[10px] font-medium ${getConnectionStatusClassName(
+                          connection.status
+                        )}`}
+                      >
+                        {getConnectionStatusLabel(
+                          connection.status
+                        )}
+                      </span>
+                    </div>
+
+                    <h3 className="mt-4 truncate text-sm font-semibold">
+                      {connection.name}
+                    </h3>
+
+                    <p className="mt-1 text-xs text-muted-foreground">
+                      {application?.name ??
+                        connection.provider}
+                    </p>
+
+                    <div className="mt-3 flex items-center justify-between gap-3 border-t pt-3">
+                      <span className="text-xs text-muted-foreground">
+                        Last updated
+                      </span>
+
+                      <span className="shrink-0 text-xs text-muted-foreground">
+                        {formatRelativeTime(
+                          connection.updatedAt
+                        )}
+                      </span>
+                    </div>
+
+                    <div className="mt-3 flex items-center gap-1.5 text-xs font-medium text-foreground">
+                      Manage connection
+
+                      <ArrowRight className="size-3.5 transition-transform group-hover:translate-x-0.5" />
+                    </div>
+                  </Link>
+                );
+              }
+            )}
+          </div>
+        )}
+      </section>
+
+      {/* =========================================================
+          LOADING
+      ========================================================== */}
+
       {loading && (
         <section className="flex min-h-52 items-center justify-center rounded-xl border bg-card">
           <Loader2 className="size-5 animate-spin text-muted-foreground" />
         </section>
       )}
+
+      {/* =========================================================
+          ERROR
+      ========================================================== */}
 
       {!loading && error && (
         <section className="rounded-xl border border-destructive/30 bg-destructive/5 p-6">
@@ -484,6 +950,7 @@ export function DashboardHome() {
               void Promise.all([
                 workflows.refetch(),
                 runs.refetch(),
+                integrations.refetch(),
               ]);
             }}
           >
@@ -491,6 +958,10 @@ export function DashboardHome() {
           </Button>
         </section>
       )}
+
+      {/* =========================================================
+          OVERVIEW + ACTIVITY
+      ========================================================== */}
 
       {!loading && !error && (
         <>
@@ -520,9 +991,7 @@ export function DashboardHome() {
                 </div>
 
                 <p className="mt-4 text-2xl font-semibold tracking-tight">
-                  {
-                    statistics.workflows
-                  }
+                  {statistics.workflows}
                 </p>
 
                 <p className="mt-1 text-xs text-muted-foreground">
@@ -582,9 +1051,7 @@ export function DashboardHome() {
                 </div>
 
                 <p className="mt-4 text-2xl font-semibold tracking-tight">
-                  {
-                    statistics.failedRuns
-                  }
+                  {statistics.failedRuns}
                 </p>
 
                 <p className="mt-1 text-xs text-muted-foreground">
@@ -595,6 +1062,8 @@ export function DashboardHome() {
           </section>
 
           <section className="grid gap-4 lg:grid-cols-2">
+            {/* RECENT WORKFLOWS */}
+
             <div className="overflow-hidden rounded-xl border bg-card">
               <div className="flex items-start justify-between gap-4 border-b p-5">
                 <div>
@@ -607,8 +1076,8 @@ export function DashboardHome() {
                   </div>
 
                   <p className="mt-1 text-sm text-muted-foreground">
-                    Favorites are kept
-                    near the top.
+                    Favorites are kept near
+                    the top.
                   </p>
                 </div>
 
@@ -646,9 +1115,7 @@ export function DashboardHome() {
                   {recentWorkflows.map(
                     (workflowItem) => (
                       <Link
-                        key={
-                          workflowItem.id
-                        }
+                        key={workflowItem.id}
                         href={`/workspaces/${workflowItem.workspaceId}/workflows/${workflowItem.id}`}
                         className="flex items-center gap-3 px-5 py-4 transition-colors hover:bg-muted/40"
                       >
@@ -663,16 +1130,12 @@ export function DashboardHome() {
                             )}
 
                             <p className="truncate text-sm font-medium">
-                              {
-                                workflowItem.name
-                              }
+                              {workflowItem.name}
                             </p>
                           </div>
 
                           <p className="mt-0.5 truncate text-xs text-muted-foreground">
-                            {
-                              workflowItem.workspaceName
-                            }
+                            {workflowItem.workspaceName}
                           </p>
                         </div>
 
@@ -682,9 +1145,7 @@ export function DashboardHome() {
                               workflowItem.status
                             )}`}
                           >
-                            {
-                              workflowItem.status
-                            }
+                            {workflowItem.status}
                           </span>
 
                           <span
@@ -703,6 +1164,8 @@ export function DashboardHome() {
               )}
             </div>
 
+            {/* RECENT ACTIVITY */}
+
             <div className="overflow-hidden rounded-xl border bg-card">
               <div className="flex items-start justify-between gap-4 border-b p-5">
                 <div>
@@ -715,8 +1178,8 @@ export function DashboardHome() {
                   </div>
 
                   <p className="mt-1 text-sm text-muted-foreground">
-                    Latest workflow
-                    execution results.
+                    Latest workflow execution
+                    results.
                   </p>
                 </div>
 
@@ -725,7 +1188,7 @@ export function DashboardHome() {
                   size="sm"
                   nativeButton={false}
                   render={
-                    <Link href="/workspaces?section=runs" />
+                    <Link href="/runs" />
                   }
                 >
                   View all
@@ -743,10 +1206,9 @@ export function DashboardHome() {
                   </p>
 
                   <p className="mt-1 max-w-sm text-xs text-muted-foreground">
-                    Run a published
-                    workflow and its
-                    execution will appear
-                    here.
+                    Run a published workflow
+                    and its execution will
+                    appear here.
                   </p>
                 </div>
               ) : (
@@ -766,15 +1228,11 @@ export function DashboardHome() {
 
                         <div className="min-w-0 flex-1">
                           <p className="truncate text-sm font-medium">
-                            {
-                              run.workflowName
-                            }
+                            {run.workflowName}
                           </p>
 
                           <p className="mt-0.5 truncate text-xs text-muted-foreground">
-                            {
-                              run.workspaceName
-                            }
+                            {run.workspaceName}
                             {" · "}
                             {run.triggerType.toLowerCase()}
                           </p>
