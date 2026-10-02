@@ -24,6 +24,11 @@ function escapeHtml(
 export const auth = betterAuth({
   appName: "Synapse",
 
+  trustedOrigins: [
+    "https://synapse-alpha-rosy.vercel.app",
+    "http://localhost:3000",
+  ],
+
   database: drizzleAdapter(db, {
     provider: "pg",
   }),
