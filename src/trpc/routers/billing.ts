@@ -17,8 +17,8 @@ import {
   workspace,
   workspaceSubscription,
 } from "@/lib/db/schema";
+import { getRazorpay } from "@/lib/razorpay";
 import { getStripe } from "@/lib/stripe";
-
 import {
   protectedProcedure,
   router,
@@ -34,57 +34,19 @@ type SubscriptionStatus =
   | "UNPAID"
   | "PAUSED";
 
-function getApplicationUrl(): string {
-  const configuredUrl =
-    process.env.NEXT_PUBLIC_APP_URL;
+function getRazorpayPlanId(): string {
+  const planId =
+    process.env.RAZORPAY_PLAN_ID;
 
-  if (!configuredUrl) {
+  if (!planId) {
     throw new TRPCError({
       code: "INTERNAL_SERVER_ERROR",
       message:
-        "NEXT_PUBLIC_APP_URL is not configured.",
+        "RAZORPAY_PLAN_ID is not configured.",
     });
   }
 
-  let url: URL;
-
-  try {
-    url = new URL(configuredUrl);
-  } catch {
-    throw new TRPCError({
-      code: "INTERNAL_SERVER_ERROR",
-      message:
-        "NEXT_PUBLIC_APP_URL is invalid.",
-    });
-  }
-
-  if (
-    url.protocol !== "http:" &&
-    url.protocol !== "https:"
-  ) {
-    throw new TRPCError({
-      code: "INTERNAL_SERVER_ERROR",
-      message:
-        "NEXT_PUBLIC_APP_URL must use HTTP or HTTPS.",
-    });
-  }
-
-  return url.origin;
-}
-
-function getProPriceId(): string {
-  const priceId =
-    process.env.STRIPE_PRO_PRICE_ID;
-
-  if (!priceId) {
-    throw new TRPCError({
-      code: "INTERNAL_SERVER_ERROR",
-      message:
-        "STRIPE_PRO_PRICE_ID is not configured.",
-    });
-  }
-
-  return priceId;
+  return planId;
 }
 
 function mapStripeSubscriptionStatus(
@@ -182,6 +144,13 @@ export const billingRouter = router({
       );
     }),
 
+  /*
+   * Legacy Stripe synchronization.
+   *
+   * Kept temporarily so existing Stripe
+   * subscriptions can still be synchronized
+   * during the Razorpay migration.
+   */
   syncSubscription:
     protectedProcedure
       .input(workspaceBillingSchema)
@@ -234,7 +203,16 @@ export const billingRouter = router({
           }
 
           const priceId =
-            getProPriceId();
+            process.env.STRIPE_PRO_PRICE_ID;
+
+          if (!priceId) {
+            throw new TRPCError({
+              code:
+                "INTERNAL_SERVER_ERROR",
+              message:
+                "STRIPE_PRO_PRICE_ID is not configured.",
+            });
+          }
 
           const activeSubscriptions =
             await findActiveProSubscriptions({
@@ -342,6 +320,12 @@ export const billingRouter = router({
         }
       ),
 
+  /*
+   * Create a Razorpay PRO subscription.
+   *
+   * The frontend will use the returned
+   * subscriptionId with Razorpay Checkout.
+   */
   createCheckoutSession:
     protectedProcedure
       .input(workspaceBillingSchema)
@@ -411,128 +395,110 @@ export const billingRouter = router({
             });
           }
 
-          const stripe = getStripe();
-          const priceId =
-            getProPriceId();
-
-          let customerId =
+          /*
+           * Prevent creating another Razorpay
+           * subscription when one is already
+           * pending authorization.
+           */
+          if (
             existingSubscription
-              ?.stripeCustomerId;
-
-          if (customerId) {
-            const activeSubscriptions =
-              await findActiveProSubscriptions({
-                customerId,
-                priceId,
-              });
-
-            if (
-              activeSubscriptions.length >
-              0
-            ) {
-              throw new TRPCError({
-                code: "CONFLICT",
-                message:
-                  "Stripe already has an active PRO subscription for this workspace. Synchronize the subscription instead of creating another checkout.",
-              });
-            }
+              ?.razorpaySubscriptionId &&
+            existingSubscription.status ===
+              "INCOMPLETE"
+          ) {
+            return {
+              subscriptionId:
+                existingSubscription
+                  .razorpaySubscriptionId,
+              keyId:
+                process.env
+                  .RAZORPAY_KEY_ID ?? "",
+            };
           }
 
-          if (!customerId) {
-            const customer =
-              await stripe.customers.create({
-                email:
-                  ctx.session.user.email,
-                name:
-                  existingWorkspace.name,
-                metadata: {
-                  workspaceId:
-                    input.workspaceId,
-                  userId:
-                    ctx.session.user.id,
-                },
-              });
+          const razorpayPlanId =
+            getRazorpayPlanId();
 
-            customerId = customer.id;
+          const razorpay =
+            getRazorpay();
 
-            await ctx.db
-              .insert(
-                workspaceSubscription
-              )
-              .values({
-                id: crypto.randomUUID(),
-                workspaceId:
-                  input.workspaceId,
-                plan: "PRO",
-                status: "INCOMPLETE",
-                stripeCustomerId:
-                  customerId,
-              })
-              .onConflictDoUpdate({
-                target:
-                  workspaceSubscription
-                    .workspaceId,
-                set: {
-                  plan: "PRO",
-                  status: "INCOMPLETE",
-                  stripeCustomerId:
-                    customerId,
-                  updatedAt: new Date(),
-                },
-              });
-          }
-
-          const applicationUrl =
-            getApplicationUrl();
-
-          const checkoutSession =
-            await stripe.checkout.sessions.create(
+          /*
+           * Razorpay requires total_count.
+           *
+           * 120 monthly cycles = 10 years.
+           * This gives Synapse long-lived recurring
+           * billing without inventing an unsupported
+           * "unlimited" value.
+           */
+          const subscription =
+            await razorpay.subscriptions.create(
               {
-                mode: "subscription",
-                customer: customerId,
-                line_items: [
-                  {
-                    price: priceId,
-                    quantity: 1,
-                  },
-                ],
-                allow_promotion_codes:
-                  true,
-                client_reference_id:
-                  input.workspaceId,
-                metadata: {
+                plan_id:
+                  razorpayPlanId,
+                total_count: 120,
+                quantity: 1,
+                customer_notify: true,
+                notes: {
                   workspaceId:
                     input.workspaceId,
                   userId:
                     ctx.session.user.id,
+                  workspaceName:
+                    existingWorkspace.name,
+                  plan: "PRO",
                 },
-                subscription_data: {
-                  metadata: {
-                    workspaceId:
-                      input.workspaceId,
-                  },
-                },
-                success_url:
-                  `${applicationUrl}/workspaces/${input.workspaceId}` +
-                  "?checkout=success",
-                cancel_url:
-                  `${applicationUrl}/workspaces/${input.workspaceId}` +
-                  "?checkout=cancelled",
               }
             );
 
-          if (!checkoutSession.url) {
+          if (!subscription.id) {
             throw new TRPCError({
               code:
                 "INTERNAL_SERVER_ERROR",
               message:
-                "Stripe did not return a checkout URL.",
+                "Razorpay did not return a subscription ID.",
             });
           }
 
+          await ctx.db
+            .insert(
+              workspaceSubscription
+            )
+            .values({
+              id: crypto.randomUUID(),
+              workspaceId:
+                input.workspaceId,
+              plan: "PRO",
+              status: "INCOMPLETE",
+              razorpaySubscriptionId:
+                subscription.id,
+              razorpayPlanId:
+                razorpayPlanId,
+              cancelAtPeriodEnd: false,
+            })
+            .onConflictDoUpdate({
+              target:
+                workspaceSubscription
+                  .workspaceId,
+              set: {
+                plan: "PRO",
+                status: "INCOMPLETE",
+                razorpaySubscriptionId:
+                  subscription.id,
+                razorpayPlanId:
+                  razorpayPlanId,
+                cancelAtPeriodEnd: false,
+                updatedAt: new Date(),
+              },
+            });
+
           return {
-            url: checkoutSession.url,
+            subscriptionId:
+              subscription.id,
+            keyId:
+              process.env
+                .RAZORPAY_KEY_ID ?? "",
           };
         }
       ),
 });
+

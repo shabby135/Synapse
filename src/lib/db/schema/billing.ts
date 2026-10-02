@@ -55,6 +55,34 @@ export const workspaceSubscription =
           "status"
         ).notNull(),
 
+      /*
+       * Razorpay billing identifiers.
+       *
+       * These are intentionally added alongside
+       * the existing Stripe fields so the migration
+       * remains non-destructive while we transition
+       * payment providers.
+       */
+      razorpayCustomerId: text(
+        "razorpay_customer_id"
+      ),
+
+      razorpaySubscriptionId: text(
+        "razorpay_subscription_id"
+      ),
+
+      razorpayPlanId: text(
+        "razorpay_plan_id"
+      ),
+
+      /*
+       * Legacy Stripe fields.
+       *
+       * Keep these temporarily during the Razorpay
+       * migration. They can be removed in a later
+       * cleanup migration after Stripe is completely
+       * removed from the application.
+       */
       stripeCustomerId: text(
         "stripe_customer_id"
       ),
@@ -99,9 +127,29 @@ export const workspaceSubscription =
         "workspace_subscription_workspace_id_idx"
       ).on(table.workspaceId),
 
+      /*
+       * Razorpay identifiers
+       */
+      uniqueIndex(
+        "workspace_subscription_razorpay_customer_id_idx"
+      ).on(
+        table.razorpayCustomerId
+      ),
+
+      uniqueIndex(
+        "workspace_subscription_razorpay_subscription_id_idx"
+      ).on(
+        table.razorpaySubscriptionId
+      ),
+
+      /*
+       * Legacy Stripe identifiers.
+       */
       uniqueIndex(
         "workspace_subscription_stripe_customer_id_idx"
-      ).on(table.stripeCustomerId),
+      ).on(
+        table.stripeCustomerId
+      ),
 
       uniqueIndex(
         "workspace_subscription_stripe_subscription_id_idx"

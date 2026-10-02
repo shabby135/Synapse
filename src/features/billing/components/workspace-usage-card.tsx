@@ -1,5 +1,6 @@
 "use client";
 
+import Script from "next/script";
 import {
   CreditCard,
   Loader2,
@@ -34,6 +35,34 @@ type UsageMeterProps = {
   value: number;
   limit: number;
 };
+
+type RazorpayCheckoutOptions = {
+  key: string;
+  subscription_id: string;
+  name: string;
+  description: string;
+  theme?: {
+    color?: string;
+  };
+  handler?: () => void;
+  modal?: {
+    ondismiss?: () => void;
+  };
+};
+
+type RazorpayInstance = {
+  open: () => void;
+};
+
+type RazorpayConstructor = new (
+  options: RazorpayCheckoutOptions
+) => RazorpayInstance;
+
+declare global {
+  interface Window {
+    Razorpay?: RazorpayConstructor;
+  }
+}
 
 const numberFormatter =
   new Intl.NumberFormat("en-US");
@@ -131,22 +160,46 @@ export function WorkspaceUsageCard({
   });
 
   const checkout = useMutation(
-    trpc.billing
-      .createCheckoutSession
-      .mutationOptions({
+    trpc.billing.createCheckoutSession.mutationOptions(
+      {
         onSuccess: (result) => {
-          window.location.assign(
-            result.url
-          );
+          if (!window.Razorpay) {
+            checkout.reset();
+            return;
+          }
+
+          const razorpay =
+            new window.Razorpay({
+              key: result.keyId,
+              subscription_id:
+                result.subscriptionId,
+              name: "Synapse",
+              description:
+                "Synapse PRO subscription",
+              theme: {
+                color:
+                  "#000000",
+              },
+              handler: () => {
+                void queryClient.invalidateQueries(
+                  {
+                    queryKey:
+                      usageQueryOptions.queryKey,
+                  }
+                );
+              },
+            });
+
+          razorpay.open();
         },
-      })
+      }
+    )
   );
 
   const synchronize =
     useMutation(
-      trpc.billing
-        .syncSubscription
-        .mutationOptions({
+      trpc.billing.syncSubscription.mutationOptions(
+        {
           onSuccess: async () => {
             await queryClient.invalidateQueries(
               {
@@ -155,7 +208,8 @@ export function WorkspaceUsageCard({
               }
             );
           },
-        })
+        }
+      )
     );
 
   if (workspace.isPending) {
@@ -210,195 +264,204 @@ export function WorkspaceUsageCard({
     checkout.isPending ||
     synchronize.isPending;
 
-const canSynchronize =
-  usage.data.plan === "FREE" &&
-  canManageBilling &&
-  Boolean(usage.data.subscription);
-
+  const canSynchronize =
+    usage.data.plan === "FREE" &&
+    canManageBilling &&
+    Boolean(
+      usage.data.subscription
+    );
 
   return (
-    <Card>
-      <CardHeader>
-        <div className="flex items-start justify-between gap-4">
-          <div>
-            <div className="flex items-center gap-2">
-              <Sparkles className="size-5" />
+    <>
+      <Script
+        src="https://checkout.razorpay.com/v1/checkout.js"
+        strategy="afterInteractive"
+      />
 
-              <CardTitle>
-                Usage and billing
-              </CardTitle>
-            </div>
+      <Card>
+        <CardHeader>
+          <div className="flex items-start justify-between gap-4">
+            <div>
+              <div className="flex items-center gap-2">
+                <Sparkles className="size-5" />
 
-            <CardDescription className="mt-1">
-              Usage for{" "}
-              {new Date(
-                usage.data.periodStart
-              ).toLocaleDateString(
-                "en-US",
-                {
-                  month: "long",
-                  year: "numeric",
-                  timeZone: "UTC",
-                }
-              )}
-              .
-            </CardDescription>
-          </div>
+                <CardTitle>
+                  Usage and billing
+                </CardTitle>
+              </div>
 
-          <span className="rounded-full bg-primary/10 px-3 py-1 text-xs font-semibold text-primary">
-            {usage.data.plan}
-          </span>
-        </div>
-      </CardHeader>
-
-      <CardContent className="space-y-5">
-        <UsageMeter
-          label="Workflow runs"
-          value={
-            usage.data.usage
-              .workflowRuns
-          }
-          limit={
-            usage.data.limits
-              .workflowRunsPerMonth
-          }
-        />
-
-        <UsageMeter
-          label="Action executions"
-          value={
-            usage.data.usage
-              .actionExecutions
-          }
-          limit={
-            usage.data.limits
-              .actionExecutionsPerMonth
-          }
-        />
-
-        <UsageMeter
-          label="AI tokens"
-          value={totalAiTokens}
-          limit={
-            usage.data.limits
-              .aiTokensPerMonth
-          }
-        />
-
-        {usage.data.subscription && (
-          <div className="rounded-md border bg-muted/40 p-3 text-sm">
-            <p className="font-medium">
-              Subscription status:{" "}
-              {
-                usage.data.subscription
-                  .status
-              }
-            </p>
-
-            {usage.data.subscription
-              .currentPeriodEnd && (
-              <p className="mt-1 text-muted-foreground">
-                Current period ends{" "}
+              <CardDescription className="mt-1">
+                Usage for{" "}
                 {new Date(
-                  usage.data.subscription
-                    .currentPeriodEnd
+                  usage.data.periodStart
                 ).toLocaleDateString(
                   "en-US",
                   {
+                    month: "long",
+                    year: "numeric",
                     timeZone: "UTC",
                   }
                 )}
                 .
-              </p>
-            )}
+              </CardDescription>
+            </div>
 
-            {usage.data.subscription
-              .cancelAtPeriodEnd && (
-              <p className="mt-1 text-amber-700">
-                This subscription will
-                cancel at the end of the
-                current period.
-              </p>
-            )}
+            <span className="rounded-full bg-primary/10 px-3 py-1 text-xs font-semibold text-primary">
+              {usage.data.plan}
+            </span>
           </div>
-        )}
+        </CardHeader>
 
-        {usage.data.plan === "FREE" &&
-          canManageBilling && (
-            <div className="space-y-3 border-t pt-4">
-              <div className="flex flex-wrap gap-2">
-                <Button
-                  type="button"
-                  disabled={
-                    isBillingActionPending
-                  }
-                  onClick={() => {
-                    synchronize.reset();
-                    checkout.mutate({
-                      workspaceId,
-                    });
-                  }}
-                >
-                  {checkout.isPending ? (
-                    <Loader2 className="size-4 animate-spin" />
-                  ) : (
-                    <CreditCard className="size-4" />
+        <CardContent className="space-y-5">
+          <UsageMeter
+            label="Workflow runs"
+            value={
+              usage.data.usage
+                .workflowRuns
+            }
+            limit={
+              usage.data.limits
+                .workflowRunsPerMonth
+            }
+          />
+
+          <UsageMeter
+            label="Action executions"
+            value={
+              usage.data.usage
+                .actionExecutions
+            }
+            limit={
+              usage.data.limits
+                .actionExecutionsPerMonth
+            }
+          />
+
+          <UsageMeter
+            label="AI tokens"
+            value={totalAiTokens}
+            limit={
+              usage.data.limits
+                .aiTokensPerMonth
+            }
+          />
+
+          {usage.data.subscription && (
+            <div className="rounded-md border bg-muted/40 p-3 text-sm">
+              <p className="font-medium">
+                Subscription status:{" "}
+                {
+                  usage.data.subscription
+                    .status
+                }
+              </p>
+
+              {usage.data.subscription
+                .currentPeriodEnd && (
+                <p className="mt-1 text-muted-foreground">
+                  Current period ends{" "}
+                  {new Date(
+                    usage.data.subscription
+                      .currentPeriodEnd
+                  ).toLocaleDateString(
+                    "en-US",
+                    {
+                      timeZone: "UTC",
+                    }
                   )}
+                  .
+                </p>
+              )}
 
-                  Upgrade to PRO
-                </Button>
+              {usage.data.subscription
+                .cancelAtPeriodEnd && (
+                <p className="mt-1 text-amber-700">
+                  This subscription will
+                  cancel at the end of the
+                  current period.
+                </p>
+              )}
+            </div>
+          )}
 
-                {canSynchronize && (
+          {usage.data.plan === "FREE" &&
+            canManageBilling && (
+              <div className="space-y-3 border-t pt-4">
+                <div className="flex flex-wrap gap-2">
                   <Button
                     type="button"
-                    variant="outline"
                     disabled={
                       isBillingActionPending
                     }
                     onClick={() => {
-                      checkout.reset();
-                      synchronize.mutate({
+                      synchronize.reset();
+
+                      checkout.mutate({
                         workspaceId,
                       });
                     }}
                   >
-                    {synchronize.isPending ? (
+                    {checkout.isPending ? (
                       <Loader2 className="size-4 animate-spin" />
                     ) : (
-                      <RefreshCw className="size-4" />
+                      <CreditCard className="size-4" />
                     )}
 
-                    Synchronize subscription
+                    Upgrade to PRO
                   </Button>
-                )}
-              </div>
 
-              <p className="text-xs text-muted-foreground">
-                Checkout runs in Stripe
-                test mode during local
-                development.
-              </p>
-            </div>
+                  {canSynchronize && (
+                    <Button
+                      type="button"
+                      variant="outline"
+                      disabled={
+                        isBillingActionPending
+                      }
+                      onClick={() => {
+                        checkout.reset();
+
+                        synchronize.mutate({
+                          workspaceId,
+                        });
+                      }}
+                    >
+                      {synchronize.isPending ? (
+                        <Loader2 className="size-4 animate-spin" />
+                      ) : (
+                        <RefreshCw className="size-4" />
+                      )}
+
+                      Synchronize subscription
+                    </Button>
+                  )}
+                </div>
+
+                <p className="text-xs text-muted-foreground">
+                  Secure checkout is
+                  provided by Razorpay.
+                </p>
+              </div>
+            )}
+
+          {synchronize.isSuccess && (
+            <p className="text-sm font-medium text-green-600">
+              Subscription synchronized successfully.
+            </p>
           )}
 
-        {synchronize.isSuccess && (
-          <p className="text-sm font-medium text-green-600">
-            Subscription synchronized successfully.
-          </p>
-        )}
+          {checkout.error && (
+            <p className="text-sm font-medium text-destructive">
+              {checkout.error.message}
+            </p>
+          )}
 
-        {checkout.error && (
-          <p className="text-sm font-medium text-destructive">
-            {checkout.error.message}
-          </p>
-        )}
-
-        {synchronize.error && (
-          <p className="text-sm font-medium text-destructive">
-            {synchronize.error.message}
-          </p>
-        )}
-      </CardContent>
-    </Card>
+          {synchronize.error && (
+            <p className="text-sm font-medium text-destructive">
+              {synchronize.error.message}
+            </p>
+          )}
+        </CardContent>
+      </Card>
+    </>
   );
 }

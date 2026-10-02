@@ -127,6 +127,13 @@
       "when": 1790717697353,
       "tag": "0017_quiet_rockslide",
       "breakpoints": true
+    },
+    {
+      "idx": 18,
+      "version": "7",
+      "when": 1790977055644,
+      "tag": "0018_concerned_boomerang",
+      "breakpoints": true
     }
   ]
 }
