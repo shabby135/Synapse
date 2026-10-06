@@ -8,11 +8,10 @@ import {
   type ReactNode,
 } from "react";
 import Link from "next/link";
-import {
-  usePathname,
-} from "next/navigation";
+import { usePathname } from "next/navigation";
 import {
   ChevronDown,
+  CreditCard,
   FileText,
   GitBranch,
   LayoutGrid,
@@ -22,6 +21,9 @@ import {
   Plus,
   TicketCheck,
 } from "lucide-react";
+import {
+  useQuery,
+} from "@tanstack/react-query";
 
 import {
   Sidebar,
@@ -42,6 +44,7 @@ import {
 import {
   navigation,
 } from "@/constants/navigations";
+import { useTRPC } from "@/trpc/react";
 
 type TemplateLogoProps = {
   first: ReactNode;
@@ -81,67 +84,56 @@ function TemplateLogos({
 
 const templateNavigation:
   readonly TemplateNavigationItem[] =
-    [
-      {
-        title:
-          "Form response triage",
-
-        href:
-          "/templates#form-response-triage",
-
-        logos: (
-          <TemplateLogos
-            first={
-              <FileText className="size-3" />
-            }
-            second={
-              <MessageSquare className="size-3" />
-            }
-            firstClassName="bg-violet-500 text-white"
-            secondClassName="bg-fuchsia-500 text-white"
-          />
-        ),
-      },
-      {
-        title: "Email to task",
-
-        href:
-          "/templates#email-to-task",
-
-        logos: (
-          <TemplateLogos
-            first={
-              <Mail className="size-3" />
-            }
-            second={
-              <LayoutGrid className="size-3" />
-            }
-            firstClassName="bg-red-500 text-white"
-            secondClassName="bg-blue-500 text-white"
-          />
-        ),
-      },
-      {
-        title:
-          "Issue escalation",
-
-        href:
-          "/templates#issue-escalation",
-
-        logos: (
-          <TemplateLogos
-            first={
-              <GitBranch className="size-3" />
-            }
-            second={
-              <TicketCheck className="size-3" />
-            }
-            firstClassName="bg-zinc-900 text-white"
-            secondClassName="bg-blue-600 text-white"
-          />
-        ),
-      },
-    ];
+  [
+    {
+      title: "Form response triage",
+      href: "/templates#form-response-triage",
+      logos: (
+        <TemplateLogos
+          first={
+            <FileText className="size-3" />
+          }
+          second={
+            <MessageSquare className="size-3" />
+          }
+          firstClassName="bg-violet-500 text-white"
+          secondClassName="bg-fuchsia-500 text-white"
+        />
+      ),
+    },
+    {
+      title: "Email to task",
+      href: "/templates#email-to-task",
+      logos: (
+        <TemplateLogos
+          first={
+            <Mail className="size-3" />
+          }
+          second={
+            <LayoutGrid className="size-3" />
+          }
+          firstClassName="bg-red-500 text-white"
+          secondClassName="bg-blue-500 text-white"
+        />
+      ),
+    },
+    {
+      title: "Issue escalation",
+      href: "/templates#issue-escalation",
+      logos: (
+        <TemplateLogos
+          first={
+            <GitBranch className="size-3" />
+          }
+          second={
+            <TicketCheck className="size-3" />
+          }
+          firstClassName="bg-zinc-900 text-white"
+          secondClassName="bg-blue-600 text-white"
+        />
+      ),
+    },
+  ];
 
 function isNavigationItemActive(
   pathname: string,
@@ -153,9 +145,7 @@ function isNavigationItemActive(
 
   return (
     pathname === href ||
-    pathname.startsWith(
-      `${href}/`
-    )
+    pathname.startsWith(`${href}/`)
   );
 }
 
@@ -166,6 +156,13 @@ export function AppSidebar() {
     isMobile,
     setOpen,
   } = useSidebar();
+
+  const trpc = useTRPC();
+
+  const membershipQuery =
+    useQuery(
+      trpc.billing.getMembership.queryOptions()
+    );
 
   const collapseTimer =
     useRef<
@@ -190,8 +187,7 @@ export function AppSidebar() {
       collapseTimer.current
     );
 
-    collapseTimer.current =
-      null;
+    collapseTimer.current = null;
   }
 
   function expandSidebar() {
@@ -213,7 +209,6 @@ export function AppSidebar() {
     collapseTimer.current =
       setTimeout(() => {
         setOpen(false);
-
         collapseTimer.current =
           null;
       }, 180);
@@ -226,8 +221,7 @@ export function AppSidebar() {
       event.relatedTarget;
 
     if (
-      nextElement instanceof
-        Node &&
+      nextElement instanceof Node &&
       event.currentTarget.contains(
         nextElement
       )
@@ -248,6 +242,19 @@ export function AppSidebar() {
       }
     };
   }, []);
+
+  const membership =
+    membershipQuery.data;
+
+  const isPro =
+    membership?.plan === "PRO";
+
+  const membershipLabel =
+    membershipQuery.isPending
+      ? "Membership"
+      : isPro
+        ? "PRO"
+        : "FREE";
 
   return (
     <Sidebar
@@ -447,6 +454,84 @@ export function AppSidebar() {
             </SidebarMenu>
           </SidebarGroupContent>
         </SidebarGroup>
+
+        <div className="mt-auto px-0 pt-4">
+          <div className="rounded-lg border bg-background/60 p-3 shadow-sm group-data-[collapsible=icon]:border-transparent group-data-[collapsible=icon]:bg-transparent group-data-[collapsible=icon]:p-1.5 group-data-[collapsible=icon]:shadow-none">
+            <div className="flex items-center gap-2">
+              <div className="flex size-7 shrink-0 items-center justify-center rounded-md bg-primary/10 text-primary">
+                <CreditCard className="size-3.5" />
+              </div>
+
+              <div className="min-w-0 flex-1 group-data-[collapsible=icon]:hidden">
+                <div className="flex items-center justify-between gap-2">
+                  <p className="truncate text-xs font-semibold">
+                    {membershipLabel}
+                  </p>
+
+                  {!membershipQuery.isPending &&
+                    !isPro && (
+                      <span className="rounded-full bg-muted px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground">
+                        Trial
+                      </span>
+                    )}
+                </div>
+
+                {membershipQuery.isPending ? (
+                  <p className="mt-1 text-[11px] text-muted-foreground">
+                    Loading membership...
+                  </p>
+                ) : isPro ? (
+                  <>
+                    <p className="mt-1 text-[11px] text-muted-foreground">
+                      Active · Unlimited workspaces
+                    </p>
+
+                    <SidebarMenuButton
+                      size="sm"
+                      tooltip="Manage membership"
+                      render={
+                        <Link href="/billing" />
+                      }
+                      className="mt-2 h-7 w-full justify-center text-xs group-data-[collapsible=icon]:hidden"
+                    >
+                      Manage membership
+                    </SidebarMenuButton>
+                  </>
+                ) : (
+                  <>
+                    <p className="mt-1 text-[11px] text-muted-foreground">
+                      {membership?.trialActive
+                        ? `${membership.trialDaysRemaining} day${
+                            membership.trialDaysRemaining ===
+                            1
+                              ? ""
+                              : "s"
+                          } left`
+                        : "Trial expired"}
+                    </p>
+
+                    <p className="mt-1 text-[11px] text-muted-foreground">
+                      Workspaces{" "}
+                      {membership?.workspaceCount ?? 0}/
+                      {membership?.workspaceLimit ?? 3}
+                    </p>
+
+                    <SidebarMenuButton
+                      size="sm"
+                      tooltip="Upgrade to PRO"
+                      render={
+                        <Link href="/billing" />
+                      }
+                      className="mt-2 h-7 w-full justify-center bg-primary text-xs text-primary-foreground hover:bg-primary/90 group-data-[collapsible=icon]:hidden"
+                    >
+                      Upgrade to PRO
+                    </SidebarMenuButton>
+                  </>
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
       </SidebarContent>
 
       <SidebarRail />
