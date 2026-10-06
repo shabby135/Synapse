@@ -1,24 +1,35 @@
 import { TRPCError } from "@trpc/server";
-import { eq } from "drizzle-orm";
+
+import {
+  count,
+  eq,
+} from "drizzle-orm";
 
 import {
   isSubscriptionActive,
 } from "@/features/billing/plans";
+
 import {
   getWorkspaceUsage,
 } from "@/features/billing/usage";
+
 import {
   workspaceBillingSchema,
 } from "@/features/billing/validator";
+
 import {
   requireWorkspacePermission,
 } from "@/features/workspace/authorization";
+
 import {
+  user,
   workspace,
   workspaceSubscription,
 } from "@/lib/db/schema";
+
 import { getRazorpay } from "@/lib/razorpay";
 import { getStripe } from "@/lib/stripe";
+
 import {
   protectedProcedure,
   router,
@@ -122,27 +133,170 @@ async function findActiveProSubscriptions({
     })
     .sort(
       (first, second) =>
-        second.created - first.created
+        second.created -
+        first.created
     );
 }
 
 export const billingRouter = router({
-  getUsage: protectedProcedure
-    .input(workspaceBillingSchema)
-    .query(async ({ ctx, input }) => {
-      await requireWorkspacePermission({
-        database: ctx.db,
-        workspaceId:
-          input.workspaceId,
-        userId:
-          ctx.session.user.id,
-        permission: "billing:read",
-      });
+  getMembership:
+    protectedProcedure.query(
+      async ({ ctx }) => {
+        const userId =
+          ctx.session.user.id;
 
-      return getWorkspaceUsage(
-        input.workspaceId
-      );
-    }),
+        const account =
+          await ctx.db.query.user.findFirst({
+            where: eq(
+              user.id,
+              userId
+            ),
+            columns: {
+              id: true,
+              createdAt: true,
+            },
+          });
+
+        if (!account) {
+          throw new TRPCError({
+            code: "UNAUTHORIZED",
+            message:
+              "Your account could not be found.",
+          });
+        }
+
+        const [workspaceCount] =
+          await ctx.db
+            .select({
+              count: count(),
+            })
+            .from(workspace)
+            .where(
+              eq(
+                workspace.ownerId,
+                userId
+              )
+            );
+
+        const subscriptions =
+          await ctx.db
+            .select({
+              plan:
+                workspaceSubscription.plan,
+              status:
+                workspaceSubscription.status,
+            })
+            .from(
+              workspaceSubscription
+            )
+            .innerJoin(
+              workspace,
+              eq(
+                workspaceSubscription.workspaceId,
+                workspace.id
+              )
+            )
+            .where(
+              eq(
+                workspace.ownerId,
+                userId
+              )
+            );
+
+        const hasActivePro =
+          subscriptions.some(
+            (subscription) =>
+              subscription.plan ===
+                "PRO" &&
+              isSubscriptionActive(
+                subscription.status
+              )
+          );
+
+        const trialEndsAt =
+          new Date(
+            account.createdAt.getTime() +
+              10 *
+                24 *
+                60 *
+                60 *
+                1000
+          );
+
+        const trialActive =
+          Date.now() <
+          trialEndsAt.getTime();
+
+        const trialDaysRemaining =
+          Math.max(
+            0,
+            Math.ceil(
+              (
+                trialEndsAt.getTime() -
+                Date.now()
+              ) /
+                (
+                  24 *
+                  60 *
+                  60 *
+                  1000
+                )
+            )
+          );
+
+        return {
+          plan: hasActivePro
+            ? "PRO"
+            : "FREE",
+
+          status: hasActivePro
+            ? "ACTIVE"
+            : "TRIALING",
+
+          workspaceCount:
+            workspaceCount?.count ?? 0,
+
+          workspaceLimit:
+            hasActivePro
+              ? null
+              : 3,
+
+          trialEndsAt:
+            hasActivePro
+              ? null
+              : trialEndsAt,
+
+          trialDaysRemaining:
+            hasActivePro
+              ? null
+              : trialDaysRemaining,
+
+          trialActive:
+            hasActivePro
+              ? false
+              : trialActive,
+        };
+      }
+    ),
+
+  getUsage:
+    protectedProcedure
+      .input(workspaceBillingSchema)
+      .query(async ({ ctx, input }) => {
+        await requireWorkspacePermission({
+          database: ctx.db,
+          workspaceId:
+            input.workspaceId,
+          userId:
+            ctx.session.user.id,
+          permission:
+            "billing:read",
+        });
+
+        return getWorkspaceUsage(
+          input.workspaceId
+        );
+      }),
 
   /*
    * Legacy Stripe synchronization.
@@ -175,14 +329,15 @@ export const billingRouter = router({
             )
             .where(
               eq(
-                workspaceSubscription
-                  .workspaceId,
+                workspaceSubscription.workspaceId,
                 input.workspaceId
               )
             )
             .limit(1);
 
-          if (!existingSubscription) {
+          if (
+            !existingSubscription
+          ) {
             throw new TRPCError({
               code: "NOT_FOUND",
               message:
@@ -203,7 +358,8 @@ export const billingRouter = router({
           }
 
           const priceId =
-            process.env.STRIPE_PRO_PRICE_ID;
+            process.env
+              .STRIPE_PRO_PRICE_ID;
 
           if (!priceId) {
             throw new TRPCError({
@@ -232,7 +388,8 @@ export const billingRouter = router({
           }
 
           if (
-            activeSubscriptions.length > 1
+            activeSubscriptions.length >
+            1
           ) {
             throw new TRPCError({
               code: "CONFLICT",
@@ -255,7 +412,8 @@ export const billingRouter = router({
           const subscriptionItem =
             stripeSubscription.items.data.find(
               (item) =>
-                item.price.id === priceId
+                item.price.id ===
+                priceId
             );
 
           if (!subscriptionItem) {
@@ -279,33 +437,40 @@ export const billingRouter = router({
             .set({
               plan: "PRO",
               status,
+
               stripeCustomerId:
                 customerId,
+
               stripeSubscriptionId:
                 stripeSubscription.id,
+
               stripePriceId:
                 subscriptionItem.price.id,
+
               currentPeriodStart:
                 new Date(
                   subscriptionItem
                     .current_period_start *
                     1000
                 ),
+
               currentPeriodEnd:
                 new Date(
                   subscriptionItem
                     .current_period_end *
                     1000
                 ),
+
               cancelAtPeriodEnd:
                 stripeSubscription
                   .cancel_at_period_end,
-              updatedAt: new Date(),
+
+              updatedAt:
+                new Date(),
             })
             .where(
               eq(
-                workspaceSubscription
-                  .workspaceId,
+                workspaceSubscription.workspaceId,
                 input.workspaceId
               )
             );
@@ -314,6 +479,7 @@ export const billingRouter = router({
             success: true,
             plan: "PRO" as const,
             status,
+
             stripeSubscriptionId:
               stripeSubscription.id,
           };
@@ -347,6 +513,8 @@ export const billingRouter = router({
             .select({
               id: workspace.id,
               name: workspace.name,
+              ownerId:
+                workspace.ownerId,
             })
             .from(workspace)
             .where(
@@ -357,11 +525,34 @@ export const billingRouter = router({
             )
             .limit(1);
 
-          if (!existingWorkspace) {
+          if (
+            !existingWorkspace
+          ) {
             throw new TRPCError({
               code: "NOT_FOUND",
               message:
                 "Workspace not found.",
+            });
+          }
+
+          /*
+           * Billing subscriptions are account-level
+           * purchases associated with a workspace.
+           *
+           * Only the workspace owner is allowed to
+           * create the subscription from the billing
+           * page. Do not rely only on the frontend
+           * OWNER filter because the client cannot be
+           * trusted.
+           */
+          if (
+            existingWorkspace.ownerId !==
+            ctx.session.user.id
+          ) {
+            throw new TRPCError({
+              code: "FORBIDDEN",
+              message:
+                "Only the workspace owner can manage the subscription.",
             });
           }
 
@@ -374,8 +565,7 @@ export const billingRouter = router({
             )
             .where(
               eq(
-                workspaceSubscription
-                  .workspaceId,
+                workspaceSubscription.workspaceId,
                 input.workspaceId
               )
             )
@@ -410,6 +600,7 @@ export const billingRouter = router({
               subscriptionId:
                 existingSubscription
                   .razorpaySubscriptionId,
+
               keyId:
                 process.env
                   .RAZORPAY_KEY_ID ?? "",
@@ -435,16 +626,23 @@ export const billingRouter = router({
               {
                 plan_id:
                   razorpayPlanId,
+
                 total_count: 120,
+
                 quantity: 1,
+
                 customer_notify: true,
+
                 notes: {
                   workspaceId:
                     input.workspaceId,
+
                   userId:
                     ctx.session.user.id,
+
                   workspaceName:
                     existingWorkspace.name,
+
                   plan: "PRO",
                 },
               }
@@ -465,35 +663,51 @@ export const billingRouter = router({
             )
             .values({
               id: crypto.randomUUID(),
+
               workspaceId:
                 input.workspaceId,
+
               plan: "PRO",
+
               status: "INCOMPLETE",
+
               razorpaySubscriptionId:
                 subscription.id,
+
               razorpayPlanId:
                 razorpayPlanId,
-              cancelAtPeriodEnd: false,
+
+              cancelAtPeriodEnd:
+                false,
             })
             .onConflictDoUpdate({
               target:
-                workspaceSubscription
-                  .workspaceId,
+                workspaceSubscription.workspaceId,
+
               set: {
                 plan: "PRO",
-                status: "INCOMPLETE",
+
+                status:
+                  "INCOMPLETE",
+
                 razorpaySubscriptionId:
                   subscription.id,
+
                 razorpayPlanId:
                   razorpayPlanId,
-                cancelAtPeriodEnd: false,
-                updatedAt: new Date(),
+
+                cancelAtPeriodEnd:
+                  false,
+
+                updatedAt:
+                  new Date(),
               },
             });
 
           return {
             subscriptionId:
               subscription.id,
+
             keyId:
               process.env
                 .RAZORPAY_KEY_ID ?? "",
@@ -501,4 +715,3 @@ export const billingRouter = router({
         }
       ),
 });
-
